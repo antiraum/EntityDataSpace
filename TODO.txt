@@ -1,0 +1,4 @@
+* query variables
+* query string parser
+* benchmark
+* serialized implementation
