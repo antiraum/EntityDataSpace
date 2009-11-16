@@ -25,10 +25,29 @@ class Entity
   # * _children_:: array of child Entity objects
   #
   def initialize(key, value, children=[])
+    
+    if key == "*" && value == "*"
+      raise ArgumentError, "Only either the key or the value can be *."
+    end
+    
     @key = key
     @value = value
     @children = children
   end
+  
+  # def Entity.from_s(str)
+  #   key, valu
+  #   new key, value, childs
+  # end
+  # 
+  # def split_s(str)
+  #   str =~ /^[^"']*["']()
+  #   "12:50am" =~ /(\d\d):(\d\d)(..)/  » 0
+  #   "Hour is #$1, minute #$2"
+  #   a = s.split(",", 2)
+  #   key = a.shift
+  #   a = a.shift.split()
+  # end
   
   def to_s(indent=0)
     s = " " * indent + (@key ? @key.to_s + ":" : "") + @value.to_s
