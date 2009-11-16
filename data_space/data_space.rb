@@ -305,21 +305,21 @@ class DataSpace
     conditions.each { |c|
 
       if c.key == Entity::ANY_VALUE && c.value == Entity::ANY_VALUE
-        # nothing to do
+        # this is not valid - we silently stop traversing here
         next
       end
       
-      if c.key == Entity::ANY_VALUE # any one attribute has to have the value
+      if c.key == Entity::ANY_VALUE # any one attribute must have the value
         
         matched = false
         db_each { |k, v|
-          next if k !~ entity_regex || db_get(k) != c.value
+          next if matched || k !~ entity_regex || db_get(k) != c.value
           matched = true
-          break
+          # break
         }
         return false if !matched
         
-      else # the key attribute has to exist and have the value
+      else # the one attribute has to exist and must have the value
         
         attrib_db_key =
           str_to_db_key(id) + ENTITY_ATTRIB_SEP + str_to_db_key(c.key)
@@ -333,9 +333,21 @@ class DataSpace
                         db_get(attrib_db_key) != c.value
       end
       
-      # recurse if value is entity id
-      next if c.value =~ @@ATTRIB_STR_VALUE_REGEX
-      return false if !entity_complies?(c.value, c.children)
+      # recurse if value is entity id and child conditions
+      next if c.value =~ @@ATTRIB_STR_VALUE_REGEX || c.children.empty?
+      
+      if c.value == Entity::ANY_VALUE # any one entity must comply
+        matched = false
+        db_each { |k, v|
+          next if matched || k =~ @@ENTITY_ATTRIB_SEP_REGEX ||
+                  !entity_complies?(db_key_to_str(k), c.children)
+          matched = true
+          # break
+        }
+        return false if !matched
+      else # the one entity must comply
+        return false if !entity_complies?(c.value, c.children)
+      end
     }      
 
     true
