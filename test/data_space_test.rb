@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby -w
 
 require "test/unit"
+require "tempfile"
 
 $LOAD_PATH.unshift File.join(File.dirname(__FILE__), "../data_space")
 $LOAD_PATH.unshift File.dirname(__FILE__)
@@ -12,7 +13,13 @@ require "test_vars"
 class DataSpaceTest < Test::Unit::TestCase
   
   def setup
-    @ds = DataSpace.new
+    @ds = DataSpace.new File.join(File.dirname(__FILE__), "test.bdb")
+    @ds.clear
+  end
+
+  def teardown
+    @ds.clear
+    @ds.close
   end
 
   def test_insert_entity

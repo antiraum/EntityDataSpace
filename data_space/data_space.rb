@@ -1,8 +1,9 @@
 #!/usr/bin/env ruby -w
 
 require "rubygems"
-require "moneta"
+# require "moneta"
 # require "moneta/berkeley"
+require "bdb"
 
 $LOAD_PATH.unshift File.dirname(__FILE__)
 require "root_entity"
@@ -30,13 +31,23 @@ class DataSpace
   # occurances of ENTITY_ATTRIB_SEP are replaced by this string
   ID_AND_KEY_INVALID = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
   
-  # Initializes the database.
+  # Opens the Berkeley DB.
   #
-  def initialize
-    @store = {}
-    # @store = Moneta::Berkeley.new(:file =>
-    #                             File.join(File.dirname(__FILE__), "db.bdb"),
-    #                             :skip_expires => true)
+  # === Parameters
+  # * _bdb_path_:: Berkeley DB file to use
+  #
+  def initialize(bdb_path)
+    # @db = {}
+    # @db = Moneta::Berkeley.new(:file => bdb_path, :skip_expires => true)
+    
+    @db = Bdb::Db.new()
+    @db.open(nil, bdb_path, nil, Bdb::Db::BTREE, Bdb::DB_CREATE, 0)
+  end
+
+  # Closes the Berkley DB.
+  #
+  def close
+    @db.close(0)
   end
 
   # Adds a new entity.
@@ -51,11 +62,11 @@ class DataSpace
     
     db_key = str_to_db_key(id)
     
-    if @store.key? db_key
+    if db_key? db_key
       raise EntityExistsError.new id
     end
     
-    @store[db_key] = 1
+    db_put db_key, "1"
   end
 
   # Removes an existing entity.
@@ -71,16 +82,22 @@ class DataSpace
     
     db_key = str_to_db_key(id)
     
-    if !@store.key? db_key
+    if !db_key? db_key
       raise NoEntityError.new id
     end
 
     # delete entity and its attributes
     db_key_regex = /^#{Regexp.escape(db_key)}/
-    @store.delete_if { |k, v| k =~ db_key_regex }
+    db_each { |k, v| db_del(k) if k =~ db_key_regex }
 
     # delete attributes that have this entity as value
-    @store.delete_if { |k, v| v == id }
+    db_each { |k, v| db_del(k) if v == id }
+  end
+
+  # Removes all existing entities.
+  #
+  def clear
+    @db.truncate(nil)
   end
 
   # Adds a new attribute to an entity.
@@ -102,22 +119,22 @@ class DataSpace
     
     entity_db_key = str_to_db_key(id)
     
-    if !@store.key? entity_db_key
+    if !db_key? entity_db_key
       raise NoEntityError.new id
     end
     
     attrib_db_key = entity_db_key + ENTITY_ATTRIB_SEP + str_to_db_key(key)
     
-    if @store.key? attrib_db_key
+    if db_key? attrib_db_key
       raise AttributeExistsError.new id, key
     end
     
     # check value entity id
-    if value !~ @@ATTRIB_STR_VALUE_REGEX && !@store.key?(str_to_db_key(value))
+    if value !~ @@ATTRIB_STR_VALUE_REGEX && !db_key?(str_to_db_key(value))
       raise NoEntityError.new value
     end
     
-    @store[attrib_db_key] = value
+    db_put attrib_db_key, value
   end
 
   # Removes an existing attribute from an entity.
@@ -133,11 +150,11 @@ class DataSpace
     
     attrib_db_key = str_to_db_key(id) + ENTITY_ATTRIB_SEP + str_to_db_key(key)
     
-    if !@store.key? attrib_db_key
+    if !db_key? attrib_db_key
       raise NoAttributeError.new id, key
     end
     
-    @store.delete attrib_db_key
+    db_del attrib_db_key
   end
 
   # Performs a search specified by a RootEntity object. Returns an array of
@@ -152,11 +169,11 @@ class DataSpace
     
     # collect entities
     if query.value == Entity::ANY_VALUE
-      @store.each_key { |k| 
+      db_each { |k, v| 
         results.push db_key_to_str(k) if k !~ @@ENTITY_ATTRIB_SEP_REGEX
       }
     else
-      results.push query.value if @store.key? str_to_db_key(query.value)
+      results.push query.value if db_key? str_to_db_key(query.value)
     end
     
     # check entities
@@ -214,6 +231,35 @@ class DataSpace
   @@ENTITY_ATTRIB_SEP_REGEX = /#{Regexp.escape(ENTITY_ATTRIB_SEP)}/
   @@ID_AND_KEY_INVALID_REGEX = /#{Regexp.escape(ID_AND_KEY_INVALID)}/
   @@ATTRIB_STR_VALUE_REGEX = /^".*"$/
+
+  def db_key?(key)
+    # @db.key? key
+    nil | @db[key]
+  end
+  
+  def db_put(key, value)
+    @db[key] = value
+  end
+  
+  def db_get(key)
+    @db[key]
+  end
+  
+  def db_del(key)
+    # @db.delete key
+    @db.del(nil, key, 0) if @db[key]
+  end
+  
+  def db_each
+    # @db.each { |k, v| yield k, v }
+    dbc = @db.cursor(nil, 0)
+    k, v = dbc.get(nil, nil, Bdb::DB_FIRST)
+    while k
+      yield k, v
+      k, v = dbc.get(nil, nil, Bdb::DB_NEXT)
+    end
+    dbc.close
+  end
   
   # Prepares entity id or attribute key for usage as a database key by
   # replacing occurences of ENTITY_ATTRIB_SEP
@@ -266,8 +312,8 @@ class DataSpace
       if c.key == Entity::ANY_VALUE # any one attribute has to have the value
         
         matched = false
-        @store.each_key { |k|
-          next if k !~ entity_regex || @store[k] != c.value
+        db_each { |k, v|
+          next if k !~ entity_regex || db_get(k) != c.value
           matched = true
           break
         }
@@ -278,13 +324,13 @@ class DataSpace
         attrib_db_key =
           str_to_db_key(id) + ENTITY_ATTRIB_SEP + str_to_db_key(c.key)
 
-        if !@store.key? attrib_db_key
+        if !db_key? attrib_db_key
           # attribute doesn't exist -> cannot satisfy condition
           return false
         end
         
         return false if c.value != Entity::ANY_VALUE &&
-                        @store[attrib_db_key] != c.value
+                        db_get(attrib_db_key) != c.value
       end
       
       # recurse if value is entity id
@@ -314,10 +360,10 @@ class DataSpace
     childs = []
     db_key_regex =
       /^#{Regexp.escape(str_to_db_key(value) + ENTITY_ATTRIB_SEP)}/
-    @store.each_key { |k|
+    db_each { |k, v|
       next if k !~ db_key_regex
       childs.push build_entity(db_key_to_str(k.sub(db_key_regex, "")),
-                               @store[k])
+                               db_get(k))
     }
     key ? Entity.new(key, value, childs) : RootEntity.new(value, childs)
   end
