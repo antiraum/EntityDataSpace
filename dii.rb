@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby -w
 
-$LOAD_PATH.unshift File.join(File.dirname(__FILE__), "ds")
-require "ds"
+$LOAD_PATH.unshift File.join(File.dirname(__FILE__), "data_space")
+require "data_space"
 
 # This scripts shows how to use the DataSpace.
 
