@@ -180,8 +180,10 @@ class DataSpace
     results.delete_if { |e| !entity_complies?(e, query.children) }
     
     # build Entity tree
-    @created_entities = {}
-    results.map { |e| build_entity(nil, e) }
+    results.map { |e|
+      @created_entities = {}
+      build_entity(nil, e)
+    }
   end
   
   class EntityExistsError < StandardError
@@ -299,7 +301,7 @@ class DataSpace
   def entity_complies?(id, conditions)
 
     return true if conditions.empty?
-
+      
     entity_regex = /^#{Regexp.escape(str_to_db_key(id) + ENTITY_ATTRIB_SEP)}/
 
     conditions.each { |c|
@@ -319,6 +321,10 @@ class DataSpace
         }
         return false if !matched
         
+        next if c.value =~ @@ATTRIB_STR_VALUE_REGEX || c.children.empty?
+
+        return false if !entity_complies?(c.value, c.children)
+        
       else # the one attribute has to exist and must have the value
         
         attrib_db_key =
@@ -329,24 +335,12 @@ class DataSpace
           return false
         end
         
-        return false if c.value != Entity::ANY_VALUE &&
-                        db_get(attrib_db_key) != c.value
-      end
-      
-      # recurse if value is entity id and child conditions
-      next if c.value =~ @@ATTRIB_STR_VALUE_REGEX || c.children.empty?
-      
-      if c.value == Entity::ANY_VALUE # any one entity must comply
-        matched = false
-        db_each { |k, v|
-          next if matched || k =~ @@ENTITY_ATTRIB_SEP_REGEX ||
-                  !entity_complies?(db_key_to_str(k), c.children)
-          matched = true
-          # break
-        }
-        return false if !matched
-      else # the one entity must comply
-        return false if !entity_complies?(c.value, c.children)
+        value = db_get(attrib_db_key)
+        return false if c.value != Entity::ANY_VALUE && value != c.value
+                        
+        next if value =~ @@ATTRIB_STR_VALUE_REGEX || c.children.empty?
+        
+        return false if !entity_complies?(value, c.children)
       end
     }      
 
