@@ -9,7 +9,7 @@ $LOAD_PATH.unshift File.dirname(__FILE__)
 require "root_entity"
 require "entity"
 
-# This class implements the dataspace in a flat way such that the entities and
+# This class implements the data space in a flat way such that the entities and
 # all their attributes are stored as key/value pairs in the database. This
 # should enable faster access and search than a serialization of the entities.
 #
