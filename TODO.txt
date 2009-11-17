@@ -2,3 +2,5 @@
 * query string parser
 * benchmark
 * serialized implementation
+* rdoc
+* check bdb api for optimizations (index)
