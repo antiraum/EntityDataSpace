@@ -141,11 +141,6 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.search(RootEntity.new TestVars::ID1,
                  [ Entity.new(TestVars::KEY1, Entity::ANY_VALUE) ]))
                  
-    # test double wildcard
-    assert_equal([ TestVars::ENTITY_STR_ATTRIB ],
-      @ds.search(RootEntity.new TestVars::ID1,
-                 [ Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE) ]))
-                 
     # test two attribute childs
     @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID2
     e = RootEntity.new TestVars::ID1,
@@ -169,6 +164,18 @@ class DataSpaceTest < Test::Unit::TestCase
     e.children[1].children.push Entity.new(TestVars::KEY2, TestVars::ID1)
     assert_equal([ e ], @ds.search(e))
     
+    # test wildcard in second of three attribute levels
+    assert_equal([ e ], 
+      @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+        Entity.new(TestVars::KEY2, Entity::ANY_VALUE, [
+          Entity.new TestVars::KEY2, TestVars::ID1
+        ])
+      ]))
+    )
+    
+    # test multiple results
+    assert_equal([ e, @ds.search(RootEntity.new(TestVars::ID2)).shift ].sort,
+                 @ds.search(RootEntity.new(Entity::ANY_VALUE)).sort)
   end
   
 end
