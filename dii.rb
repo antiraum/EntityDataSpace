@@ -3,11 +3,11 @@
 $LOAD_PATH.unshift File.join(File.dirname(__FILE__), "data_space")
 require "data_space"
 
-# This scripts shows how to use the DataSpace.
+# This scripts shows how to use the data space.
 
-# 1. Create DataSpace object
+# 1. Create +DataSpace+ object
 #
-ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb");
+ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb")
 
 # 2. Insert some entities
 #
@@ -40,33 +40,44 @@ ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb");
 
 # 4. Perform some queries
 #
-puts "\nAll entities that are related to italy:"
+puts "\n"
+puts "All entities that are related to italy:"
+puts "---------------------------------------"
 puts ds.search(
   RootEntity.new("*", [
     Entity.new("*", "ITALY")
   ])
-)
+).map { |id| ds.get_entity id }
 
-puts "\nAll entities that live in a city in italy:"
+puts "\n"
+puts "All entities that live in a city in italy:"
+puts "------------------------------------------"
 puts ds.search(
   RootEntity.new("*", [
     Entity.new("livesIn", "*", [
       Entity.new("isIn", "ITALY")
     ])
   ])
-)
+).map { |id| ds.get_entity id }
 
-puts "\nAll entities that have a german name:"
+puts "\n"
+puts "All entities that have a german name:"
+puts "-------------------------------------"
 puts ds.search(
   RootEntity.new("*", [
     Entity.new("hasGermanName", "*")
   ])
-)
+).map { |id| ds.get_entity id }
 
-puts "\nAll about SUSAN"
-puts ds.search RootEntity.new("SUSAN")
+puts "\n"
+puts "All about SUSAN:"
+puts "----------------"
+puts ds.search(RootEntity.new("SUSAN")).map { |id| ds.get_entity id }
 
-puts "\nAll entities that have a daughter who has a father who likes Pizza, has a VW_GOLF and lives in an entity with an attribute \"Trient\":"
+puts "\n"
+puts "All entities that have a daughter who has a father who likes Pizza,"
+puts "has a VW_GOLF and lives in an entity with an attribute \"Trient\":"
+puts "-------------------------------------------------------------------"
 puts ds.search(
   RootEntity.new("*", [
     Entity.new("hasDaughter", "*", [
@@ -79,10 +90,10 @@ puts ds.search(
       ])
     ])
   ])
-)
+).map { |id| ds.get_entity id }
 
 # 5. Can 
 
-# 6. Close the DataSpace
+# 6. Close the +DataSpace+
 # ds.clear
 ds.close
