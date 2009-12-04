@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby -w
 
 require "test/unit"
-require "tempfile"
+require "fileutils"
 
 $LOAD_PATH.unshift File.join(File.dirname(__FILE__), "../data_space")
 $LOAD_PATH.unshift File.dirname(__FILE__)
@@ -12,170 +12,311 @@ require "test_vars"
  
 class DataSpaceTest < Test::Unit::TestCase
   
-  def setup
-    @ds = DataSpace.new File.join(File.dirname(__FILE__), "test.bdb")
-    @ds.clear
-  end
-
-  def teardown
-    @ds.clear
-    @ds.close
+  BDB_PATH = File.join(File.dirname(__FILE__), "test.bdb")
+  
+  # Runs a test block in all index modes of the data space.
+  #
+  def run_test_block
+    [[false, false], [true, false], [true, true]].each { |args|
+      FileUtils::rm_r BDB_PATH if File.exists? BDB_PATH
+      @ds = DataSpace.new BDB_PATH, args.shift, args.shift
+      @ds.clear
+      yield
+      @ds.clear
+      @ds.close
+    }
   end
 
   def test_insert_entity
     
-    # test ok
-    @ds.insert_entity TestVars::ID1
-    assert_equal [ RootEntity.new(TestVars::ID1) ],
-                 @ds.search(TestVars::ENTITY)
+    run_test_block {
     
-    # test entity exists
-    assert_raise(DataSpace::EntityExistsError) {
+      # test ok
       @ds.insert_entity TestVars::ID1
-    }
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY)
     
-    # test invalid id
-    assert_raise(ArgumentError) { @ds.insert_entity TestVars::INVAL }
+      # test entity exists
+      assert_raise(DataSpace::EntityExistsError) {
+        @ds.insert_entity TestVars::ID1
+      }
+    
+      # test invalid id
+      assert_raise(ArgumentError) { @ds.insert_entity TestVars::INVAL }
+    }
   end
   
   def test_delete_entity
     
-    # test ok
-    @ds.insert_entity TestVars::ID1
-    assert_equal [ RootEntity.new(TestVars::ID1) ],
-                 @ds.search(TestVars::ENTITY)
-    @ds.delete_entity TestVars::ID1
-    assert_equal [], @ds.search(TestVars::ENTITY)
+    run_test_block {
     
-    # test no entity
-    assert_raise(DataSpace::NoEntityError) { @ds.delete_entity TestVars::ID1 }
+      # test ok
+      @ds.insert_entity TestVars::ID1
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY)
+      @ds.delete_entity TestVars::ID1
+      assert_equal [], @ds.search(TestVars::ENTITY)
     
-    # test with attributes
-    @ds.insert_entity TestVars::ID1
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-    @ds.delete_entity TestVars::ID1
-    assert_equal [], @ds.search(TestVars::ENTITY)
-    assert_raise(DataSpace::NoAttributeError) {
-      @ds.delete_attribute(TestVars::ID1, TestVars::KEY1)
-    }
+      # test no entity
+      assert_raise(DataSpace::NoEntityError) {
+        @ds.delete_entity TestVars::ID1
+      }
     
-    # test with referencing attribute
-    @ds.insert_entity TestVars::ID1
-    @ds.insert_entity TestVars::ID2
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-    @ds.delete_entity TestVars::ID2
-    assert_raise(DataSpace::NoAttributeError) {
-      @ds.delete_attribute(TestVars::ID1, TestVars::KEY1)
-    }
-    @ds.delete_entity TestVars::ID1
+      # test with attributes
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.delete_entity TestVars::ID1
+      assert_equal [], @ds.search(TestVars::ENTITY)
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute(TestVars::ID1, TestVars::KEY1,
+                             TestVars::STR_VALUE1)
+      }
+    
+      # test with referencing attribute
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      @ds.delete_entity TestVars::ID2
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute(TestVars::ID1, TestVars::KEY1, TestVars::ID2)
+      }
+      @ds.delete_entity TestVars::ID1
 
-    # test invalid id
-    assert_raise(ArgumentError) { @ds.delete_entity TestVars::INVAL }
+      # test invalid id
+      assert_raise(ArgumentError) { @ds.delete_entity TestVars::INVAL }
+    }
   end
  
   def test_insert_attribute
     
-    # test ok
-    @ds.insert_entity TestVars::ID1
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-    assert_equal [ TestVars::ENTITY_STR_ATTRIB ],
-                 @ds.search(TestVars::ENTITY_STR_ATTRIB)
-    @ds.delete_attribute TestVars::ID1, TestVars::KEY1
-    @ds.insert_entity TestVars::ID2
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-    assert_equal [ TestVars::ENTITY_ID_ATTRIB ],
-                 @ds.search(TestVars::ENTITY_ID_ATTRIB)
-    @ds.delete_entity TestVars::ID1            
-    @ds.delete_entity TestVars::ID2
+    run_test_block {
     
-    # test no entity
-    assert_raise(DataSpace::NoEntityError) {
+      # test ok
+      @ds.insert_entity TestVars::ID1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-    }
-    
-    # test attribute exists
-    @ds.insert_entity TestVars::ID1
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-    assert_raise(DataSpace::AttributeExistsError) {
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-    }
-    @ds.delete_entity TestVars::ID1
-  
-    # test no entity (attribute value)
-    @ds.insert_entity TestVars::ID1
-    assert_raise(DataSpace::NoEntityError) {
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_entity TestVars::ID2
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_ID_ATTRIB)
+      @ds.delete_entity TestVars::ID1            
+      @ds.delete_entity TestVars::ID2
+    
+      # test no entity
+      assert_raise(DataSpace::NoEntityError) {
+        @ds.insert_attribute TestVars::ID1, TestVars::KEY1,
+                             TestVars::STR_VALUE1
+      }
+    
+      # test same key different values
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE2
+      assert_equal [ TestVars::ID1 ],
+        @ds.search(RootEntity.new(TestVars::ID1, [
+          Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
+          Entity.new(TestVars::KEY1, TestVars::STR_VALUE2)
+        ]))
+      @ds.delete_entity TestVars::ID1
+
+      # test same key same values
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      assert_raise(DataSpace::AttributeExistsError) {
+        @ds.insert_attribute TestVars::ID1, TestVars::KEY1,
+                             TestVars::STR_VALUE1
+      }
+      @ds.delete_entity TestVars::ID1
+  
+      # test no entity (attribute value)
+      @ds.insert_entity TestVars::ID1
+      assert_raise(DataSpace::NoEntityError) {
+        @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      }
+      @ds.delete_entity TestVars::ID1
     }
-    @ds.delete_entity TestVars::ID1
+  end
+  
+  def test_delete_attribute
+    
+    run_test_block {
+      
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      
+      # test ok
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_ID_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      assert_equal [], @ds.search(TestVars::ENTITY_ID_ATTRIB)
+      
+      # test no attribute
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1,
+                             TestVars::STR_VALUE1
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      }
+      
+      # test all attributes
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1,
+                             TestVars::STR_VALUE1
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      }
+      
+      # test all attributes with same key
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR_VALUE2
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2,
+                             TestVars::STR_VALUE1
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2,
+                             TestVars::STR_VALUE2
+      }
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+    }
   end
   
   def test_search
     
-    # test no results
-    assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+    run_test_block {
     
-    # test all entities
-    @ds.insert_entity TestVars::ID1
-    @ds.insert_entity TestVars::ID2
-    assert_equal(
-      [ TestVars::ID1, TestVars::ID2 ].map { |id| RootEntity.new id }.sort,
-      @ds.search(RootEntity.new Entity::ANY_VALUE).sort
-    )
+      # test no results
+      assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
     
-    # test entity exists but attribute not
-    assert_equal([], @ds.search(TestVars::ENTITY_STR_ATTRIB))
+      # test all entities
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      assert_equal [ TestVars::ID1, TestVars::ID2 ].sort,
+                   @ds.search(TestVars::ENTITY_ANY).sort
     
-    # test entity exits but attribute has wrong value
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-    assert_equal([],
-      @ds.search(RootEntity.new TestVars::ID1,
-                 [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE2) ]))
+      # test entity exists but attribute not
+      assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
     
-    # test attribute key wildcard
-    assert_equal([ TestVars::ENTITY_STR_ATTRIB ],
-      @ds.search(RootEntity.new TestVars::ID1,
-                 [ Entity.new(Entity::ANY_VALUE, TestVars::STR_VALUE1) ]))
+      # test entity exits but attribute has wrong value
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      assert_equal [],
+        @ds.search(RootEntity.new TestVars::ID1,
+                   [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE2) ])
     
-    # test attribute value wildcard
-    assert_equal([ TestVars::ENTITY_STR_ATTRIB ],
-      @ds.search(RootEntity.new TestVars::ID1,
-                 [ Entity.new(TestVars::KEY1, Entity::ANY_VALUE) ]))
+      # test attribute key wildcard
+      assert_equal [ TestVars::ID1 ],
+        @ds.search(RootEntity.new TestVars::ID1,
+                   [ Entity.new(Entity::ANY_VALUE, TestVars::STR_VALUE1) ])
+    
+      # test attribute value wildcard
+      assert_equal [ TestVars::ID1 ],
+        @ds.search(RootEntity.new TestVars::ID1,
+                   [ Entity.new(TestVars::KEY1, Entity::ANY_VALUE) ])
                  
-    # test two attribute childs
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID2
-    e = RootEntity.new TestVars::ID1,
-                       [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
-                         Entity.new(TestVars::KEY2, TestVars::ID2) ]
-    assert_equal([ e ], @ds.search(e))
+      # test two attribute childs
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID2
+      e = RootEntity.new TestVars::ID1,
+                         [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
+                           Entity.new(TestVars::KEY2, TestVars::ID2) ]
+      assert_equal [ TestVars::ID1 ], @ds.search(e)
     
-    # test cascaded childs
-    @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR_VALUE2
-    e.children[1].children.push Entity.new(TestVars::KEY1,
+      # test cascaded childs
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR_VALUE2
+      e.children[1].children << Entity.new(TestVars::KEY1,
                                            TestVars::STR_VALUE2)
-    assert_equal([ e ], @ds.search(e))
+      assert_equal [ TestVars::ID1 ], @ds.search(e)
     
-    # test selfloop 
-    @ds.insert_attribute TestVars::ID1, TestVars::KEY3, TestVars::ID1
-    e.children.push Entity.new(TestVars::KEY3, TestVars::ID1)
-    assert_equal([ e ], @ds.search(e))
+      # test selfloop 
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY3, TestVars::ID1
+      e.children << Entity.new(TestVars::KEY3, TestVars::ID1)
+      assert_equal [ TestVars::ID1 ], @ds.search(e)
     
-    # test looping references between entities
-    @ds.insert_attribute TestVars::ID2, TestVars::KEY2, TestVars::ID1
-    e.children[1].children.push Entity.new(TestVars::KEY2, TestVars::ID1)
-    assert_equal([ e ], @ds.search(e))
+      # test looping references between entities
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY2, TestVars::ID1
+      e.children[1].children << Entity.new(TestVars::KEY2, TestVars::ID1)
+      assert_equal [ TestVars::ID1 ], @ds.search(e)
     
-    # test wildcard in second of three attribute levels
-    assert_equal([ e ], 
-      @ds.search(RootEntity.new(Entity::ANY_VALUE, [
-        Entity.new(TestVars::KEY2, Entity::ANY_VALUE, [
-          Entity.new TestVars::KEY2, TestVars::ID1
-        ])
-      ]))
-    )
+      # test wildcard in second of three attribute levels
+      assert_equal [ TestVars::ID1 ], 
+        @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+          Entity.new(TestVars::KEY2, Entity::ANY_VALUE, [
+            Entity.new TestVars::KEY2, TestVars::ID1
+          ])
+        ]))
     
-    # test multiple results
-    assert_equal([ e, @ds.search(RootEntity.new(TestVars::ID2)).shift ].sort,
-                 @ds.search(RootEntity.new(Entity::ANY_VALUE)).sort)
+      # test multiple results
+      assert_equal [ TestVars::ID1, TestVars::ID2 ].sort,
+                   @ds.search(TestVars::ENTITY_ANY).sort
+    }
   end
   
+  def test_get_entity
+    
+    run_test_block {
+      
+      # test ok
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY2, TestVars::ID1
+      e = RootEntity.new TestVars::ID1,
+                         [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
+                           Entity.new(TestVars::KEY1, TestVars::STR_VALUE2),
+                           Entity.new(TestVars::KEY1, TestVars::ID1),
+                           Entity.new(TestVars::KEY1, TestVars::ID2,
+                           [
+                             Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
+                             Entity.new(TestVars::KEY2, TestVars::ID1)
+                           ]) ]      
+      assert_equal e, @ds.get_entity(TestVars::ID1)
+      @ds.delete_entity TestVars::ID1
+      @ds.delete_entity TestVars::ID2
+      
+      # test invalid id
+      assert_raise(DataSpace::NoEntityError) {
+        @ds.get_entity TestVars::ID2
+      }
+    }
+  end
+  
+  def test_exhaustive
+    
+    run_test_block {
+    
+      num_nodes = 50
+    
+      # fully connected graph
+      (0..num_nodes).each { |n|
+        @ds.insert_entity TestVars::ID1 + n.to_s
+      }
+      (0..num_nodes).each { |n1|
+        (0..num_nodes).each { |n2|
+          @ds.insert_attribute TestVars::ID1 + n1.to_s, TestVars::KEY1, TestVars::ID1 + n2.to_s
+        }
+      }
+      
+      # e = RootEntity.new TestVars::ID1 + "*"
+      # [1..99].each { |n|
+      #   e.children << Entity.new TestVars::ID1 + "*"
+      #   
+      # }
+      
+      (0..num_nodes).each { |n|
+        @ds.delete_entity TestVars::ID1 + n.to_s
+      }
+    }
+  end
 end

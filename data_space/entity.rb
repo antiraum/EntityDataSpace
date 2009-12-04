@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby -w
 
 # This class implements an data type for an entity used to query the
-# DataSpace and to represent the search results.
-# This is _not_ the representation used internally in the DataSpace.
+# +DataSpace+ and to represent the search results.
+# This is _not_ the representation used internally in the +DataSpace+.
 #
 # Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
 #
@@ -22,7 +22,7 @@ class Entity
   # === Parameters
   # * _key_:: attribute name (can be nil when root; can be * in a query)
   # * _value_:: attribute value (can be * in a query)
-  # * _children_:: array of child Entity objects
+  # * _children_:: array of child +Entity+ objects
   #
   def initialize(key, value, children=[])
     
@@ -30,46 +30,54 @@ class Entity
       raise ArgumentError, "Only either the key or the value can be *."
     end
     
-    @key = key
-    @value = value
-    @children = children
+    @key, @value, @children = key, value, children
   end
   
   # def Entity.from_s(str)
-  #   key, valu
   #   new key, value, childs
   # end
-  # 
-  # def split_s(str)
-  #   str =~ /^[^"']*["']()
-  #   "12:50am" =~ /(\d\d):(\d\d)(..)/  » 0
-  #   "Hour is #$1, minute #$2"
-  #   a = s.split(",", 2)
-  #   key = a.shift
-  #   a = a.shift.split()
-  # end
+  
+  def Entity.split_s(str)
+    # "(?<!\\\\)%.*$"
+    key, value, childs_str = 
+    case str
+      when /^([^:]+):([^\(]+)(.*)$/
+        [$1, $2, $3]
+      when /^([^\(]+)(.*)$/
+        [nil, $1, $2]
+      else
+        return nil
+    end
+    childs = []
+    if childs_str =~ /^\s*\((.+)\)\s*$/
+      childs = $1.split(/, ?/).map { |s| split_s(s) }
+    end
+    Entity.new key, value, childs
+  end
   
   def to_s(indent=0)
     s = " " * indent + (@key ? @key.to_s + ":" : "") + @value.to_s
-    if !@children.empty?
+    unless @children.empty?
       s << " (\n" +
-           @children.map { |c| c.to_s(indent + 2) }.join("") +
+           @children.map { |child| child.to_s(indent + 2) }.join("") +
            " " * indent + ")"
     end
     s << "\n"
   end
   
   def ==(other)
-    return false if !other
+    return false unless other
     # ((!@key && !other.key) || (@key && other.key && @key == other.key)) &&
     @key == other.key &&
     @value == other.value && @children.sort == other.children.sort
   end
   
   def <=>(other)
-    return @value <=> other.value if !@key && !other.key
-    return -1 if !@key
-    return 1 if !other.key
+    return @value <=> other.value unless @key || other.key
+    return -1 unless @key
+    return 1 unless other.key
     @key <=> other.key 
   end
 end
+
+# puts Entity.split_s("bla:blu(bl:bl, ha:ha(b:b, x:y), x:y,a:b(karl:otto))")
