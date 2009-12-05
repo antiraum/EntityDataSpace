@@ -17,7 +17,11 @@ class DataSpaceTest < Test::Unit::TestCase
   # Runs a test block in all index modes of the data space.
   #
   def run_test_block
-    [[false, false], [true, false], [true, true]].each { |args|
+    [
+      # [false, false],
+      # [true, false],
+      [true, true]
+    ].each { |args|
       FileUtils::rm_r BDB_PATH if File.exists? BDB_PATH
       @ds = DataSpace.new BDB_PATH, args.shift, args.shift
       yield
@@ -108,10 +112,10 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR2
       assert_equal [ TestVars::ID1 ],
-        @ds.search(RootEntity.new(TestVars::ID1, [
-          Entity.new(TestVars::KEY1, TestVars::STR1),
-          Entity.new(TestVars::KEY1, TestVars::STR2)
-        ]))
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, TestVars::STR1),
+                     Entity.new(TestVars::KEY1, TestVars::STR2)
+                   ]))
       @ds.delete_entity TestVars::ID1
 
       # test same key same values
@@ -201,18 +205,21 @@ class DataSpaceTest < Test::Unit::TestCase
       # test entity exits but attribute has wrong value
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       assert_equal [],
-        @ds.search(RootEntity.new TestVars::ID1,
-                   [ Entity.new(TestVars::KEY1, TestVars::STR2) ])
+                   @ds.search(RootEntity.new TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, TestVars::STR2)
+                   ])
     
       # test attribute key wildcard
       assert_equal [ TestVars::ID1 ],
-        @ds.search(RootEntity.new TestVars::ID1,
-                   [ Entity.new(Entity::ANY_VALUE, TestVars::STR1) ])
+                   @ds.search(RootEntity.new TestVars::ID1, [
+                     Entity.new(Entity::ANY_VALUE, TestVars::STR1)
+                   ])
     
       # test attribute value wildcard
       assert_equal [ TestVars::ID1 ],
-        @ds.search(RootEntity.new TestVars::ID1,
-                   [ Entity.new(TestVars::KEY1, Entity::ANY_VALUE) ])
+                   @ds.search(RootEntity.new TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, Entity::ANY_VALUE)
+                   ])
                  
       # test two attribute childs
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID2
@@ -238,11 +245,11 @@ class DataSpaceTest < Test::Unit::TestCase
     
       # test wildcard in second of three attribute levels
       assert_equal [ TestVars::ID1 ], 
-        @ds.search(RootEntity.new(Entity::ANY_VALUE, [
-          Entity.new(TestVars::KEY2, Entity::ANY_VALUE, [
-            Entity.new TestVars::KEY2, TestVars::ID1
-          ])
-        ]))
+                   @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+                     Entity.new(TestVars::KEY2, Entity::ANY_VALUE, [
+                       Entity.new TestVars::KEY2, TestVars::ID1
+                     ])
+                   ]))
     
       # test multiple results
       assert_equal [ TestVars::ID1, TestVars::ID2 ].sort,
@@ -263,36 +270,67 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID3
       @ds.insert_attribute TestVars::ID3, TestVars::KEY2, TestVars::ID1
       
-      assert_equal [ TestVars::ID1, TestVars::ID2 ],
-        @ds.search(RootEntity.new(TestVars::VAR1, [
-          Entity.new(TestVars::KEY1, TestVars::VAR1)
-        ]))
-        
-      assert_equal [ TestVars::ID2 ],
-        @ds.search(RootEntity.new(TestVars::VAR1, [
-          Entity.new(TestVars::KEY1, TestVars::VAR1, [
-            Entity.new(TestVars::KEY1, TestVars::VAR2, [
-              Entity.new(TestVars::KEY1, TestVars::VAR2)
-            ])
-          ])
-        ]))
+      # check simple
+      assert_equal [ TestVars::ID1, TestVars::ID2 ].sort,
+                   @ds.search(RootEntity.new(TestVars::VAR1, [
+                     Entity.new(TestVars::KEY1, TestVars::VAR1)
+                   ])).sort
       
+      # check more complex
       assert_equal [ TestVars::ID2 ],
-        @ds.search(RootEntity.new(TestVars::VAR1, [
-          Entity.new(TestVars::KEY1, TestVars::VAR1),
-          Entity.new(TestVars::KEY1, TestVars::VAR2, [
-            Entity.new(TestVars::KEY1, TestVars::VAR2),
-            Entity.new(TestVars::KEY2, TestVars::VAR3, [
-              Entity.new(TestVars::KEY2, TestVars::VAR2, [
-                Entity.new(TestVars::KEY1, TestVars::VAR2)
-              ])
-            ])
-          ])
-        ]))
+                   @ds.search(RootEntity.new(TestVars::VAR1, [
+                     Entity.new(TestVars::KEY1, TestVars::VAR1, [
+                       Entity.new(TestVars::KEY1, TestVars::VAR2, [
+                         Entity.new(TestVars::KEY1, TestVars::VAR2)
+                       ])
+                     ])
+                   ]))
+      
+      # check more complex
+      assert_equal [ TestVars::ID2 ],
+                   @ds.search(RootEntity.new(TestVars::VAR1, [
+                     Entity.new(TestVars::KEY1, TestVars::VAR1),
+                     Entity.new(TestVars::KEY1, TestVars::VAR2, [
+                       Entity.new(TestVars::KEY1, TestVars::VAR2),
+                       Entity.new(TestVars::KEY2, TestVars::VAR3, [
+                         Entity.new(TestVars::KEY2, TestVars::VAR2, [
+                           Entity.new(TestVars::KEY1, TestVars::VAR2)
+                         ])
+                       ])
+                     ])
+                   ]))
         
-      # TODO check single variable
-      # TODO check variable for string value
-      # TODO test mixed with wildcard
+      # check single variable (should be treated like wildcard)
+      assert_equal [ TestVars::ID1, TestVars::ID2, TestVars::ID3 ].sort,
+                   @ds.search(RootEntity.new(TestVars::VAR1)).sort
+      assert_equal [ TestVars::ID2 ],
+                   @ds.search(RootEntity.new(TestVars::VAR1, [
+                     Entity.new(TestVars::KEY1, TestVars::VAR2)
+                   ]))
+      
+      # check mixed with wildcards
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+                     Entity.new(TestVars::KEY1, TestVars::VAR1, [
+                       Entity.new(TestVars::KEY1, TestVars::VAR1, [
+                         Entity.new(TestVars::KEY2, Entity::ANY_VALUE)
+                       ])
+                     ])
+                   ]))
+      
+      # check key variable
+      assert_equal [ TestVars::ID2 ],
+                   @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+                     Entity.new(TestVars::VAR1, TestVars::ID1),
+                     Entity.new(TestVars::VAR1, TestVars::ID2)
+                   ]))
+
+      # check key and value variables
+      assert_equal [ TestVars::ID2 ],
+                   @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+                     Entity.new(TestVars::VAR1, TestVars::VAR2),
+                     Entity.new(TestVars::VAR1, TestVars::VAR3)
+                   ]), true)
     }
   end
   
@@ -309,15 +347,15 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR1
       @ds.insert_attribute TestVars::ID2, TestVars::KEY2, TestVars::ID1
-      e = RootEntity.new TestVars::ID1,
-                         [ Entity.new(TestVars::KEY1, TestVars::STR1),
-                           Entity.new(TestVars::KEY1, TestVars::STR2),
-                           Entity.new(TestVars::KEY1, TestVars::ID1),
-                           Entity.new(TestVars::KEY1, TestVars::ID2,
-                           [
-                             Entity.new(TestVars::KEY1, TestVars::STR1),
-                             Entity.new(TestVars::KEY2, TestVars::ID1)
-                           ]) ]      
+      e = RootEntity.new TestVars::ID1, [
+        Entity.new(TestVars::KEY1, TestVars::STR1),
+        Entity.new(TestVars::KEY1, TestVars::STR2),
+        Entity.new(TestVars::KEY1, TestVars::ID1),
+        Entity.new(TestVars::KEY1, TestVars::ID2, [
+          Entity.new(TestVars::KEY1, TestVars::STR1),
+          Entity.new(TestVars::KEY2, TestVars::ID1)
+        ])
+      ]      
       assert_equal e, @ds.get_entity(TestVars::ID1)
       @ds.delete_entity TestVars::ID1
       @ds.delete_entity TestVars::ID2
@@ -341,7 +379,8 @@ class DataSpaceTest < Test::Unit::TestCase
       }
       (0..num_nodes).each { |n1|
         (0..num_nodes).each { |n2|
-          @ds.insert_attribute TestVars::ID1 + n1.to_s, TestVars::KEY1, TestVars::ID1 + n2.to_s
+          @ds.insert_attribute TestVars::ID1 + n1.to_s, TestVars::KEY1,
+                               TestVars::ID1 + n2.to_s
         }
       }
       

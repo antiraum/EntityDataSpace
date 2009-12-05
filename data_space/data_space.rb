@@ -290,7 +290,10 @@ class DataSpace
     # check entities
     results.delete_if { |id_dbs|
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
-      !entity_complies?(id_dbs, query.children, vars, verb)
+      unless entity_complies?(id_dbs, query.children, vars, verb)
+        puts "FALSE #{id_dbs} doesn't comply" if verb
+        true
+      end
     }
     
     results.map { |id_dbs| dbs_to_s(id_dbs) }
@@ -659,7 +662,9 @@ class DataSpace
   # * +true+ if conditions fulfilled, +false+ if not
   #
   def entity_complies?(id_dbs, conditions, vars={}, verb=false)
-    
+
+    return true if conditions.empty?   
+     
     if verb
       puts "-------------------------------"
       puts id_dbs
@@ -668,11 +673,9 @@ class DataSpace
       puts "-------------------------------"
     end
 
-    return true if conditions.empty?
-
     conditions.each { |child|
 
-      if child.key == Entity::ANY_VALUE &&
+      if (child.key == Entity::ANY_VALUE || child.key =~ @@VAR_REGEX) &&
          (child.value == Entity::ANY_VALUE || child.value =~ @@VAR_REGEX)
         # this is not valid -- we silently stop traversing here
         # TODO check again, if valid we have to traverse
@@ -680,7 +683,17 @@ class DataSpace
         next
       end  
         
-      value_dbs = s_to_dbs(child.value)
+      key_dbs, value_dbs = s_to_dbs(child.key), s_to_dbs(child.value)
+      
+      if child.key =~ @@VAR_REGEX
+        if vars[$']
+          # replace variable with value
+          key_dbs = vars[$']
+        else
+          # treat as wildcard
+          key_var = $'
+        end
+      end
       
       if child.value =~ @@VAR_REGEX
         if vars[$']
@@ -688,19 +701,23 @@ class DataSpace
           value_dbs = vars[$']
         else
           # treat as wildcard
-          child.value = Entity::ANY_VALUE
           value_var = $'
         end
       end
       
-      if child.key == Entity::ANY_VALUE
+      if child.key == Entity::ANY_VALUE || key_var
         # any attribute must have the value
+        
+        key_dbs = []
 
-        if @use_add_idx
+        if @use_add_idx && ! key_var # need key value if var
 
           # lookup at +@v_idx+
-          return false unless db_value_contains?(@v_idx, value_dbs, id_dbs)
-
+          unless db_value_contains?(@v_idx, value_dbs, id_dbs)
+            puts "FALSE #{id_dbs} not in @v_idx[#{value_dbs}]" if verb
+            return false
+          end
+          
         elsif @use_idx
 
           # loop over +@idx+ (better than loop over +@store+ as
@@ -709,57 +726,105 @@ class DataSpace
           idx_value_regex = build_value_grep_regex(id_dbs)
           matched = false
           db_each(@idx) { |idx_key, idx_value|
-            next if idx_key !~ idx_key_regex || idx_value !~ idx_value_regex
+            next unless idx_key =~ idx_key_regex
+            k_dbs = $'
+            next unless idx_value =~ idx_value_regex
             matched = true
-            false
+            key_var ? key_dbs << k_dbs : false # collect var values or break
           }
-          return false unless matched
+          unless matched
+            puts "FALSE #{id_dbs} not in @idx[#{idx_key_regex}]" if verb
+            return false
+          end
 
         else
 
           # loop over +@store+
           store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+          store_value_regex = build_value_grep_regex(value_dbs)
           matched = false
           db_each(@store) { |store_key, store_value|
-            next if store_key !~ store_key_regex ||
-                    store_value != value_dbs
+            next unless store_key =~ store_key_regex
+            k_dbs = $'
+            next unless store_value =~ store_value_regex
             matched = true
-            false
+            key_var ? key_dbs << k_dbs : false # collect var values or break
           }
-          return false unless matched
+          unless matched
+            puts "FALSE #{value_dbs} not in @store[#{store_key_regex}]" if verb
+            return false
+          end
 
         end
         
-      elsif child.value == Entity::ANY_VALUE
+        if key_var
+          # recurse over all key values
+          possible_value = false
+          key_dbs.each { |k_dbs|
+            next if vars.value?(k_dbs) # vars must have diff. values
+            possible_value = true
+            vars[key_var] = k_dbs # diff. var value on each run
+            unless entity_complies?(value_dbs, child.children, vars, verb)
+              puts "FALSE #{value_dbs} doesn't comply" if verb
+              return false
+            end
+          }
+          unless possible_value
+            puts "FALSE no possible key value"
+            return false
+          end
+        else
+          # recurse
+          next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
+          unless entity_complies?(value_dbs, child.children, vars, verb)
+            puts "FALSE #{value_dbs} doesn't comply" if verb
+            return false
+          end
+        end
+        
+      elsif child.value == Entity::ANY_VALUE || value_var
         # the attribute must exist with any value
         
         # lookup at +@store+
-        store_value = @store[id_dbs + DB_SEP + s_to_dbs(child.key)]
-        return false unless store_value
+        unless store_value = @store[id_dbs + DB_SEP + key_dbs]
+          puts "FALSE no @store[#{id_dbs + DB_SEP + key_dbs}]" if verb
+          return false
+        end
         
-        # recurse over all values
+        # recurse over all value values
         possible_value = false
         store_value.split(DB_SEP).each { |v_dbs|
           next if value_var &&
                   vars.value?(v_dbs) # vars must have diff. values
           possible_value = true
           vars[value_var] = v_dbs if value_var # diff. var value on each run
-          return false unless entity_complies?(v_dbs, child.children, vars,
-                                               verb)
-        }
-        return possible_value ? true : false # end here
+          unless entity_complies?(v_dbs, child.children, vars, verb)
+            puts "FALSE #{v_dbs} doesn't comply" if verb
+            return false
+          end
+        }  
+        unless possible_value
+          puts "FALSE no possible value value" if verb
+          return false
+        end
         
       else
         # the attribute must exist and must have the value
         
         # lookup at +@store+
-        store_key = id_dbs + DB_SEP + s_to_dbs(child.key)
-        return false unless db_value_contains? @store, store_key, value_dbs
-      end  
+        store_key = id_dbs + DB_SEP + key_dbs
+        unless db_value_contains? @store, store_key, value_dbs
+          puts "FALSE #{value_dbs} not in @store[#{store_key}]" if verb
+          return false
+        end
         
-      next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
-
-      return false unless entity_complies?(value_dbs, child.children, vars, verb)
+        # recurse
+        next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
+        unless entity_complies?(value_dbs, child.children, vars, verb)
+          puts "FALSE #{value_dbs} doesn't comply" if verb
+          return false
+        end
+      end
     }      
 
     true
