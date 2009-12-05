@@ -12,7 +12,7 @@ class EntityTest < Test::Unit::TestCase
   def build_entity
     Entity.new TestVars::KEY1, TestVars::ID1,
                [ Entity.new(TestVars::KEY1, TestVars::ID2),
-                 Entity.new(TestVars::KEY2, TestVars::STR_VALUE1) ]
+                 Entity.new(TestVars::KEY2, TestVars::STR1) ]
   end
   
   def test_entity
@@ -22,7 +22,7 @@ class EntityTest < Test::Unit::TestCase
     assert_equal TestVars::KEY1, e.children[0].key
     assert_equal TestVars::ID2, e.children[0].value
     assert_equal TestVars::KEY2, e.children[1].key
-    assert_equal TestVars::STR_VALUE1, e.children[1].value
+    assert_equal TestVars::STR1, e.children[1].value
   end
   
   def test_double_wildcard
