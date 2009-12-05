@@ -25,12 +25,6 @@ class EntityTest < Test::Unit::TestCase
     assert_equal TestVars::STR1, e.children[1].value
   end
   
-  def test_double_wildcard
-    assert_raise(ArgumentError) {
-      Entity.new Entity::ANY_VALUE, Entity::ANY_VALUE
-    }
-  end
-  
   def test_to_s
     e = build_entity
     expected = <<STR

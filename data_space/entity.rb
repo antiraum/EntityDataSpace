@@ -15,21 +15,20 @@ class Entity
   attr_accessor :key, :value, :children
   
   # An entity consists of a key, a value, and an array of child entities.
+  #
   # The value can be be a string (recognized by quotes, i.e., "Trento" instead
   # of Trento) or an entity identifier. Entity identifiers (ids) are strings
   # (without quotes).
   #
+  # Key and value can be a wildcard "*" or a variable (string beginning with
+  # "$").
+  #
   # === Parameters
-  # * _key_:: attribute name (can be nil when root; can be * in a query)
-  # * _value_:: attribute value (can be * in a query)
+  # * _key_:: attribute name (can be nil when root; * or $... in a query)
+  # * _value_:: attribute value (can be * or $... in a query)
   # * _children_:: array of child +Entity+ objects
   #
   def initialize(key, value, children=[])
-    
-    if key == "*" && value == "*"
-      raise ArgumentError, "Only either the key or the value can be *."
-    end
-    
     @key, @value, @children = key, value, children
   end
   

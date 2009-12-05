@@ -12,15 +12,16 @@ require "entity"
 
 class RootEntity < Entity
   
-  # The +new+ class method initializes the class.
+  # An root entity consists of an entity id and an array of child entities.
+  # The entity id can be a wildcard "*" or a variable (string beginning with
+  # "$").
   #
   # === Parameters
-  # * _id_:: identifier of the root entity (can be * in a query)
+  # * _id_:: identifier of the root entity (can be * or $... in a query)
   # * _children_:: array of child +Entity+ objects
   #
   def initialize(id, children=[])
     super nil, id, children
   end
-  
   
 end

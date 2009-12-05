@@ -295,10 +295,12 @@ class DataSpace
     # check entities
     results.delete_if { |id_dbs|
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
-      unless entity_complies?(id_dbs, query.children, vars, verb)
-        puts "FALSE #{id_dbs} doesn't comply" if verb
-        true
+      next if entity_complies?(id_dbs, query.children, vars, verb)
+      if verb
+        puts "FALSE #{id_dbs} doesn't comply"
+        puts "==============================="
       end
+      true
     }
     
     results.map { |id_dbs| dbs_to_s(id_dbs) }
@@ -548,7 +550,7 @@ class DataSpace
       if value_dbs =~ /#{dbs_esc}$/
         db[key_dbs] = value_dbs.chomp(DB_SEP + dbs)
       else
-        value_dbs.sub(dbs + DB_SEP, "")
+        db[key_dbs] = value_dbs.sub(dbs + DB_SEP, "")
       end
     end
     true
@@ -680,14 +682,6 @@ class DataSpace
     end
 
     conditions.each { |child|
-
-      if (child.key == Entity::ANY_VALUE || child.key =~ @@VAR_REGEX) &&
-         (child.value == Entity::ANY_VALUE || child.value =~ @@VAR_REGEX)
-        # this is not valid -- we silently stop traversing here
-        # TODO check again, if valid we have to traverse
-        # at least * => $x should be possible
-        next
-      end  
         
       key_dbs, value_dbs = s_to_dbs(child.key), s_to_dbs(child.value)
       
@@ -711,7 +705,66 @@ class DataSpace
         end
       end
       
-      if child.key == Entity::ANY_VALUE || key_var
+      if (child.key == Entity::ANY_VALUE || key_var) &&
+         (child.value == Entity::ANY_VALUE || value_var)
+        # any attribute with any value 
+        
+        # loop over +@store+
+        store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+        matched = false
+        key_dbs, value_dbs = {}, []
+        db_each(@store) { |store_key, store_value|
+          next unless store_key =~ store_key_regex
+          matched = true
+          if key_var
+            key_dbs[$'] = store_value.split(DB_SEP)
+          else
+            value_dbs = value_dbs | store_value.split(DB_SEP)
+          end
+        }  
+        unless matched
+          puts "FALSE #{id_dbs} not in @store[#{store_key_regex}]" if verb
+          return false
+        end
+        
+        # recurse over all key and/or value values
+        found_value = false
+        if key_var
+          key_dbs.each { |k_dbs, value_dbs|
+            next if vars.value?(k_dbs) # vars must differ
+            vars[key_var] = k_dbs # diff var value per run
+            value_dbs.each { |v_dbs|
+              next if value_var && vars.value?(v_dbs) # vars must differ
+              puts "checking #{k_dbs} : #{v_dbs}" if verb
+              vars[value_var] = v_dbs if value_var # diff var value per run
+              unless entity_complies?(v_dbs, child.children, vars, verb)
+                puts "FALSE #{v_dbs} doesn't comply" if verb
+                next
+              end
+              found_value = true
+              break
+            }
+            break if found_value
+          }
+        else
+          value_dbs.each { |v_dbs|
+            next if value_var && vars.value?(v_dbs) # vars must differ
+            puts "checking * : #{v_dbs}" if verb
+            vars[value_var] = v_dbs if value_var # diff var value per run
+            unless entity_complies?(v_dbs, child.children, vars, verb)
+              puts "FALSE #{v_dbs} doesn't comply" if verb
+              next
+            end
+            found_value = true
+            break
+          }
+        end
+        unless found_value
+          puts "FALSE no possible key and/or value value" if verb
+          return false
+        end
+        
+      elsif child.key == Entity::ANY_VALUE || key_var
         # any attribute must have the value
         
         key_dbs = []
@@ -765,18 +818,19 @@ class DataSpace
         
         if key_var
           # recurse over all key values
-          possible_value = false
+          found_value = false
           key_dbs.each { |k_dbs|
-            next if vars.value?(k_dbs) # vars must have diff. values
-            possible_value = true
-            vars[key_var] = k_dbs # diff. var value on each run
+            next if vars.value?(k_dbs) # vars must differ
+            vars[key_var] = k_dbs # diff var value per run
             unless entity_complies?(value_dbs, child.children, vars, verb)
               puts "FALSE #{value_dbs} doesn't comply" if verb
-              return false
+              next
             end
+            found_value = true
+            break
           }
-          unless possible_value
-            puts "FALSE no possible key value"
+          unless found_value
+            puts "FALSE no possible key value" if verb
             return false
           end
         else
@@ -798,18 +852,18 @@ class DataSpace
         end
         
         # recurse over all value values
-        possible_value = false
+        found_value = false
         store_value.split(DB_SEP).each { |v_dbs|
-          next if value_var &&
-                  vars.value?(v_dbs) # vars must have diff. values
-          possible_value = true
-          vars[value_var] = v_dbs if value_var # diff. var value on each run
+          next if value_var && vars.value?(v_dbs) # vars must differ
+          vars[value_var] = v_dbs if value_var # diff var value per run
           unless entity_complies?(v_dbs, child.children, vars, verb)
             puts "FALSE #{v_dbs} doesn't comply" if verb
-            return false
+            next
           end
+          found_value = true
+          break
         }  
-        unless possible_value
+        unless found_value
           puts "FALSE no possible value value" if verb
           return false
         end
