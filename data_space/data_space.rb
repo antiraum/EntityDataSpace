@@ -246,7 +246,8 @@ class DataSpace
     
     store_value = @store[store_key]
     unless store_value &&
-           (value == Entity::ANY_VALUE || store_value == value_dbs)
+           (value == Entity::ANY_VALUE ||
+            store_value =~ build_value_grep_regex(value_dbs))
       raise NoAttributeError.new id, key, value
     end
     
@@ -272,6 +273,10 @@ class DataSpace
   # * Array of entity ids.
   #
   def search(query, verb=false)
+    
+    unless query.instance_of? RootEntity
+      raise ArgumentError, "query must be an instance of RootEntity"
+    end
     
     results = []
     
@@ -500,11 +505,9 @@ class DataSpace
   # * +Regexpr+
   #
   def build_value_grep_regex(dbs)
-    /
-      (^ | #{@@DB_SEP_ESC})
-      #{Regexp.escape(dbs)}
-      (#{@@DB_SEP_ESC} | $)
-    /x
+    /(^ | #{@@DB_SEP_ESC})
+     #{Regexp.escape(dbs)}
+     (#{@@DB_SEP_ESC} | $)/x
   end
 
   # Adds a dbs to the value of a pair in a database. If the pair doesn't
@@ -542,8 +545,11 @@ class DataSpace
       db_del db, key_dbs
     else
       # is part of the value -> remove from value
-      db[key_dbs] = value_dbs =~ /#{dbs_esc}$/ ?
-        value_dbs.chomp(DB_SEP + dbs) : value_dbs.sub(dbs + DB_SEP, "")
+      if value_dbs =~ /#{dbs_esc}$/
+        db[key_dbs] = value_dbs.chomp(DB_SEP + dbs)
+      else
+        value_dbs.sub(dbs + DB_SEP, "")
+      end
     end
     true
   end

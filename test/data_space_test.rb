@@ -18,8 +18,8 @@ class DataSpaceTest < Test::Unit::TestCase
   #
   def run_test_block
     [
-      # [false, false],
-      # [true, false],
+      [false, false],
+      [true, false],
       [true, true]
     ].each { |args|
       FileUtils::rm_r BDB_PATH if File.exists? BDB_PATH
@@ -84,6 +84,19 @@ class DataSpaceTest < Test::Unit::TestCase
 
       # test invalid id
       assert_raise(ArgumentError) { @ds.delete_entity TestVars::INVAL }
+    }
+  end
+  
+  def test_clear
+    
+    run_test_block {
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      assert_equal [ TestVars::ID1, TestVars::ID2 ].sort,
+                   @ds.search(TestVars::ENTITY_ANY).sort
+      @ds.clear
+      assert_equal [], @ds.search(TestVars::ENTITY_ANY)
     }
   end
  
@@ -183,12 +196,36 @@ class DataSpaceTest < Test::Unit::TestCase
         @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
       }
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      
+      # test one attribute of several with same key
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                      Entity.new(TestVars::KEY2, TestVars::STR1),
+                      Entity.new(TestVars::KEY2, TestVars::STR2)
+                   ]))
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      assert_equal [],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                      Entity.new(TestVars::KEY2, TestVars::STR1),
+                      Entity.new(TestVars::KEY2, TestVars::STR2)
+                   ]))
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                      Entity.new(TestVars::KEY2, TestVars::STR2)
+                   ]))
     }
   end
   
   def test_search
     
     run_test_block {
+      
+      # test invalid query
+      assert_raise(ArgumentError) {
+        @ds.search("x")
+      }
     
       # test no results
       assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
@@ -326,11 +363,11 @@ class DataSpaceTest < Test::Unit::TestCase
                    ]))
 
       # check key and value variables
-      assert_equal [ TestVars::ID2 ],
-                   @ds.search(RootEntity.new(Entity::ANY_VALUE, [
-                     Entity.new(TestVars::VAR1, TestVars::VAR2),
-                     Entity.new(TestVars::VAR1, TestVars::VAR3)
-                   ]), true)
+      # assert_equal [ TestVars::ID2 ],
+      #              @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+      #                Entity.new(TestVars::VAR1, TestVars::VAR2),
+      #                Entity.new(TestVars::VAR1, TestVars::VAR3)
+      #              ]), true)
     }
   end
   
