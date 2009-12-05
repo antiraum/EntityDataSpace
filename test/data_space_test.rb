@@ -20,10 +20,9 @@ class DataSpaceTest < Test::Unit::TestCase
     [[false, false], [true, false], [true, true]].each { |args|
       FileUtils::rm_r BDB_PATH if File.exists? BDB_PATH
       @ds = DataSpace.new BDB_PATH, args.shift, args.shift
-      @ds.clear
       yield
-      @ds.clear
       @ds.close
+      FileUtils::rm_r BDB_PATH
     }
   end
 
@@ -62,12 +61,11 @@ class DataSpaceTest < Test::Unit::TestCase
     
       # test with attributes
       @ds.insert_entity TestVars::ID1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       @ds.delete_entity TestVars::ID1
       assert_equal [], @ds.search(TestVars::ENTITY)
       assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute(TestVars::ID1, TestVars::KEY1,
-                             TestVars::STR_VALUE1)
+        @ds.delete_attribute(TestVars::ID1, TestVars::KEY1, TestVars::STR1)
       }
     
       # test with referencing attribute
@@ -91,9 +89,9 @@ class DataSpaceTest < Test::Unit::TestCase
     
       # test ok
       @ds.insert_entity TestVars::ID1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
-      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       @ds.insert_entity TestVars::ID2
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_ID_ATTRIB)
@@ -102,27 +100,25 @@ class DataSpaceTest < Test::Unit::TestCase
     
       # test no entity
       assert_raise(DataSpace::NoEntityError) {
-        @ds.insert_attribute TestVars::ID1, TestVars::KEY1,
-                             TestVars::STR_VALUE1
+        @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       }
     
       # test same key different values
       @ds.insert_entity TestVars::ID1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR2
       assert_equal [ TestVars::ID1 ],
         @ds.search(RootEntity.new(TestVars::ID1, [
-          Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
-          Entity.new(TestVars::KEY1, TestVars::STR_VALUE2)
+          Entity.new(TestVars::KEY1, TestVars::STR1),
+          Entity.new(TestVars::KEY1, TestVars::STR2)
         ]))
       @ds.delete_entity TestVars::ID1
 
       # test same key same values
       @ds.insert_entity TestVars::ID1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       assert_raise(DataSpace::AttributeExistsError) {
-        @ds.insert_attribute TestVars::ID1, TestVars::KEY1,
-                             TestVars::STR_VALUE1
+        @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       }
       @ds.delete_entity TestVars::ID1
   
@@ -143,9 +139,9 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_entity TestVars::ID2
       
       # test ok
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
-      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_ID_ATTRIB)
@@ -154,37 +150,33 @@ class DataSpaceTest < Test::Unit::TestCase
       
       # test no attribute
       assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY1,
-                             TestVars::STR_VALUE1
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       }
       assert_raise(DataSpace::NoAttributeError) {
         @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       }
       
       # test all attributes
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
       assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY1,
-                             TestVars::STR_VALUE1
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       }
       assert_raise(DataSpace::NoAttributeError) {
         @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       }
       
       # test all attributes with same key
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR_VALUE1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR_VALUE2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
       @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
       assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY2,
-                             TestVars::STR_VALUE1
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
       }
       assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY2,
-                             TestVars::STR_VALUE2
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
       }
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
     }
@@ -207,15 +199,15 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
     
       # test entity exits but attribute has wrong value
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       assert_equal [],
         @ds.search(RootEntity.new TestVars::ID1,
-                   [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE2) ])
+                   [ Entity.new(TestVars::KEY1, TestVars::STR2) ])
     
       # test attribute key wildcard
       assert_equal [ TestVars::ID1 ],
         @ds.search(RootEntity.new TestVars::ID1,
-                   [ Entity.new(Entity::ANY_VALUE, TestVars::STR_VALUE1) ])
+                   [ Entity.new(Entity::ANY_VALUE, TestVars::STR1) ])
     
       # test attribute value wildcard
       assert_equal [ TestVars::ID1 ],
@@ -225,14 +217,13 @@ class DataSpaceTest < Test::Unit::TestCase
       # test two attribute childs
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID2
       e = RootEntity.new TestVars::ID1,
-                         [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
+                         [ Entity.new(TestVars::KEY1, TestVars::STR1),
                            Entity.new(TestVars::KEY2, TestVars::ID2) ]
       assert_equal [ TestVars::ID1 ], @ds.search(e)
     
       # test cascaded childs
-      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR_VALUE2
-      e.children[1].children << Entity.new(TestVars::KEY1,
-                                           TestVars::STR_VALUE2)
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR2
+      e.children[1].children << Entity.new(TestVars::KEY1, TestVars::STR2)
       assert_equal [ TestVars::ID1 ], @ds.search(e)
     
       # test selfloop 
@@ -258,6 +249,52 @@ class DataSpaceTest < Test::Unit::TestCase
                    @ds.search(TestVars::ENTITY_ANY).sort
     }
   end
+
+  def test_search_with_vars
+
+    run_test_block {
+      
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      @ds.insert_entity TestVars::ID3
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID1
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::ID1
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::ID2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::ID3
+      @ds.insert_attribute TestVars::ID3, TestVars::KEY2, TestVars::ID1
+      
+      assert_equal [ TestVars::ID1, TestVars::ID2 ],
+        @ds.search(RootEntity.new(TestVars::VAR1, [
+          Entity.new(TestVars::KEY1, TestVars::VAR1)
+        ]))
+        
+      assert_equal [ TestVars::ID2 ],
+        @ds.search(RootEntity.new(TestVars::VAR1, [
+          Entity.new(TestVars::KEY1, TestVars::VAR1, [
+            Entity.new(TestVars::KEY1, TestVars::VAR2, [
+              Entity.new(TestVars::KEY1, TestVars::VAR2)
+            ])
+          ])
+        ]))
+      
+      assert_equal [ TestVars::ID2 ],
+        @ds.search(RootEntity.new(TestVars::VAR1, [
+          Entity.new(TestVars::KEY1, TestVars::VAR1),
+          Entity.new(TestVars::KEY1, TestVars::VAR2, [
+            Entity.new(TestVars::KEY1, TestVars::VAR2),
+            Entity.new(TestVars::KEY2, TestVars::VAR3, [
+              Entity.new(TestVars::KEY2, TestVars::VAR2, [
+                Entity.new(TestVars::KEY1, TestVars::VAR2)
+              ])
+            ])
+          ])
+        ]))
+        
+      # TODO check single variable
+      # TODO check variable for string value
+      # TODO test mixed with wildcard
+    }
+  end
   
   def test_get_entity
     
@@ -266,19 +303,19 @@ class DataSpaceTest < Test::Unit::TestCase
       # test ok
       @ds.insert_entity TestVars::ID1
       @ds.insert_entity TestVars::ID2
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR_VALUE2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR2
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR_VALUE1
+      @ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::STR1
       @ds.insert_attribute TestVars::ID2, TestVars::KEY2, TestVars::ID1
       e = RootEntity.new TestVars::ID1,
-                         [ Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
-                           Entity.new(TestVars::KEY1, TestVars::STR_VALUE2),
+                         [ Entity.new(TestVars::KEY1, TestVars::STR1),
+                           Entity.new(TestVars::KEY1, TestVars::STR2),
                            Entity.new(TestVars::KEY1, TestVars::ID1),
                            Entity.new(TestVars::KEY1, TestVars::ID2,
                            [
-                             Entity.new(TestVars::KEY1, TestVars::STR_VALUE1),
+                             Entity.new(TestVars::KEY1, TestVars::STR1),
                              Entity.new(TestVars::KEY2, TestVars::ID1)
                            ]) ]      
       assert_equal e, @ds.get_entity(TestVars::ID1)

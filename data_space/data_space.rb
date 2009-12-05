@@ -3,6 +3,7 @@
 require "rubygems"
 require "bdb"
 require "fileutils"
+require "pp"
 
 $LOAD_PATH.unshift File.dirname(__FILE__)
 require "root_entity"
@@ -265,16 +266,17 @@ class DataSpace
   #
   # === Parameters
   # * _query_:: +RootEntity+ object
+  # * _verb_:: print debug output
   #
   # === Returns
   # * Array of entity ids.
   #
-  def search(query)
+  def search(query, verb=false)
     
     results = []
     
     # collect entities
-    if query.value == Entity::ANY_VALUE
+    if query.value == Entity::ANY_VALUE || query.value =~ @@VAR_REGEX
       # loop over +@store+
       db_each(@store) { |store_key, store_value|
         results << store_key unless store_key =~ @@DB_SEP_REGEX
@@ -286,7 +288,10 @@ class DataSpace
     end
     
     # check entities
-    results.delete_if { |id_dbs| !entity_complies?(id_dbs, query.children) }
+    results.delete_if { |id_dbs|
+      vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
+      !entity_complies?(id_dbs, query.children, vars, verb)
+    }
     
     results.map { |id_dbs| dbs_to_s(id_dbs) }
   end
@@ -385,6 +390,7 @@ class DataSpace
   @@DB_SEP_REGEX = /#{@@DB_SEP_ESC}/
   @@DB_INVALID_REGEX = /#{Regexp.escape(DB_INVALID)}/
   @@ATTRIB_STR_VALUE_REGEX = /^".*"$/
+  @@VAR_REGEX = /^\$/
   
   # Opens a BDB database inside a directory.
   #
@@ -646,23 +652,46 @@ class DataSpace
   # === Parameters
   # * _id_dbs_:: entity identifier
   # * _conditions_:: array of +Entity+ object (trees)
+  # * _vars_:: hash of query variables with their values
+  # * _verb_:: print debug output
   #
   # === Returns
   # * +true+ if conditions fulfilled, +false+ if not
   #
-  def entity_complies?(id_dbs, conditions)
+  def entity_complies?(id_dbs, conditions, vars={}, verb=false)
+    
+    if verb
+      puts "-------------------------------"
+      puts id_dbs
+      puts conditions.each { |c| c.to_s }
+      pp vars
+      puts "-------------------------------"
+    end
 
     return true if conditions.empty?
 
     conditions.each { |child|
 
-      if child.key == Entity::ANY_VALUE && child.value == Entity::ANY_VALUE
+      if child.key == Entity::ANY_VALUE &&
+         (child.value == Entity::ANY_VALUE || child.value =~ @@VAR_REGEX)
         # this is not valid -- we silently stop traversing here
         # TODO check again, if valid we have to traverse
+        # at least * => $x should be possible
         next
       end  
         
       value_dbs = s_to_dbs(child.value)
+      
+      if child.value =~ @@VAR_REGEX
+        if vars[$']
+          # replace variable with value
+          value_dbs = vars[$']
+        else
+          # treat as wildcard
+          child.value = Entity::ANY_VALUE
+          value_var = $'
+        end
+      end
       
       if child.key == Entity::ANY_VALUE
         # any attribute must have the value
@@ -692,7 +721,8 @@ class DataSpace
           store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
           matched = false
           db_each(@store) { |store_key, store_value|
-            next if store_key !~ store_key_regex || store_value != value_dbs
+            next if store_key !~ store_key_regex ||
+                    store_value != value_dbs
             matched = true
             false
           }
@@ -701,14 +731,26 @@ class DataSpace
         end
         
       elsif child.value == Entity::ANY_VALUE
-        # the attribute has to exist with any value
+        # the attribute must exist with any value
         
         # lookup at +@store+
-        value_dbs = @store[id_dbs + DB_SEP + s_to_dbs(child.key)]
-        return false unless value_dbs
+        store_value = @store[id_dbs + DB_SEP + s_to_dbs(child.key)]
+        return false unless store_value
+        
+        # recurse over all values
+        possible_value = false
+        store_value.split(DB_SEP).each { |v_dbs|
+          next if value_var &&
+                  vars.value?(v_dbs) # vars must have diff. values
+          possible_value = true
+          vars[value_var] = v_dbs if value_var # diff. var value on each run
+          return false unless entity_complies?(v_dbs, child.children, vars,
+                                               verb)
+        }
+        return possible_value ? true : false # end here
         
       else
-        # the attribute has to exist and must have the value
+        # the attribute must exist and must have the value
         
         # lookup at +@store+
         store_key = id_dbs + DB_SEP + s_to_dbs(child.key)
@@ -717,7 +759,7 @@ class DataSpace
         
       next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
 
-      return false unless entity_complies?(value_dbs, child.children)
+      return false unless entity_complies?(value_dbs, child.children, vars, verb)
     }      
 
     true
