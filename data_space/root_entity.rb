@@ -20,7 +20,7 @@ class RootEntity < Entity
   # * _id_:: identifier of the root entity (can be * or $... in a query)
   # * _children_:: array of child +Entity+ objects
   #
-  def initialize(id, children=[])
+  def initialize(id, children = [])
     super nil, id, children
   end
   

@@ -28,7 +28,7 @@ class Entity
   # * _value_:: attribute value (can be * or $... in a query)
   # * _children_:: array of child +Entity+ objects
   #
-  def initialize(key, value, children=[])
+  def initialize(key, value, children = [])
     @key, @value, @children = key, value, children
   end
   
@@ -54,7 +54,7 @@ class Entity
     Entity.new key, value, childs
   end
   
-  def to_s(indent=0)
+  def to_s(indent = 0)
     s = " " * indent + (@key ? @key.to_s + ":" : "") + @value.to_s
     unless @children.empty?
       s << " (\n" +

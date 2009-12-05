@@ -43,6 +43,7 @@ class DataSpace
 
   # separator in the database key and value fields
   DB_SEP = "///"
+  
   # this string is not allowed in entity ids and attribute keys and values
   # occurances of +DB_SEP+ are replaced by this string
   DB_INVALID = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
@@ -56,7 +57,7 @@ class DataSpace
   # * _use_idx_:: use inverted index
   # * _use_add_idx_:: use inverted index and additional indexes
   #
-  def initialize(bdb_path, use_idx=true, use_add_idx=true)
+  def initialize(bdb_path, use_idx = true, use_add_idx = true)
     
     @use_idx = @use_add_idx = use_add_idx
     @use_idx ||= use_idx
@@ -272,7 +273,7 @@ class DataSpace
   # === Returns
   # * Array of entity ids.
   #
-  def search(query, verb=false)
+  def search(query, verb = false)
     
     unless query.instance_of? RootEntity
       raise ArgumentError, "query must be an instance of RootEntity"
@@ -395,6 +396,8 @@ class DataSpace
   end
 
   private
+  
+  @@SHOW_DB_USE = true
     
   @@DB_SEP_ESC = Regexp.escape DB_SEP
   @@DB_SEP_REGEX = /#{@@DB_SEP_ESC}/
@@ -669,7 +672,7 @@ class DataSpace
   # === Returns
   # * +true+ if conditions fulfilled, +false+ if not
   #
-  def entity_complies?(id_dbs, conditions, vars={}, verb=false)
+  def entity_complies?(id_dbs, conditions, vars = {}, verb = false)
 
     return true if conditions.empty?   
      
