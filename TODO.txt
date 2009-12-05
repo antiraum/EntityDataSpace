@@ -1,26 +1,8 @@
-* query variables
-* query string parser
+# PRIO 1
+* check which indexes to keep
 * benchmark
-* serialized implementation
+
+# PRIO 2
+* query string parser
 * rdoc
-* check bdb api for optimizations 
-	* index
-		* As you suggested, a clustered index on userID will mean range searches on userID will be fast (i.e. for all properties relating to a single user). Might also add a non-clustered index on UserID and PropertyKey for single key-2-value selects per user.
-	* real references to entity ids
-	* insert triggers to keep consistency
-	* joined get
-	* views
-	* transactions / commits
-	* DB flags (e.g. Bdb::DB_DUPSORT)
-	* multi-tables
-		* multiple dbs in one file
-		* second index (attrib keys)
-		* associate / pget
-	* @db.sync
-* exception catches for bdb calls
-
-------------
-
-You can optionally also have secondary keys that represent indexes into your database. These keys do not have to be unique to a given record; in fact, they often are not. For example, you might set up the employee's manager's name as a secondary key so that it is easy to locate all the employee's that work for a given manager.
-
-Complex objects must be marshaled using either Java serialization, or more efficiently with the bind APIs provided with DB
+* pre-process search query to remove duplicate conditions for entities at different point (entities represented as ids or vars)
