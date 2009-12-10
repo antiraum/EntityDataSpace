@@ -68,7 +68,8 @@ class DataSpace
     
     return unless @use_idx
     
-    @idx = open_db(bdb_path, "index")
+    @idx1 = open_db(bdb_path, "index_1")
+    @idx2 = open_db(bdb_path, "index_2")
     
     return unless @use_add_idx
     
@@ -86,11 +87,11 @@ class DataSpace
     
     return unless @use_idx
     
-    close_db @idx
+    [ @idx1, @idx2 ].each { |db| close_db db }
     
     return unless @use_add_idx
     
-    [@k_idx, @v_idx, @id_idx].each { |db| close_db db }
+    [ @k_idx, @v_idx, @id_idx ].each { |db| close_db db }
   end
 
   # Adds a new entity.
@@ -135,20 +136,26 @@ class DataSpace
     
     # delete attributes that have this entity as value
     #
-    # lookup solution:
-    # val -> key1///key2///key2
-    # FE: key in @k_idx
-    # but val -> key index might be large (only use if needed in other places)
-    #
-    if @use_idx
-      # loop over +@idx+
-      idx_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
-      db_each(@idx) { |idx_key, idx_value|
-        next unless idx_key =~ idx_key_regex
+    if @use_add_idx
+      # lookup in +@v_idx+
+      return unless v_idx_value = @v_idx[id_dbs]
+      v_idx_value.split(DB_SEP).each { |v_idx_id_dbs|
+        # lookup in +@idx2+
+        next unless idx2_value = @idx2[v_idx_id_dbs + DB_SEP + id_dbs]
+        idx2_value.split(DB_SEP).each { |key_dbs|
+          db_remove_from_value @store, v_idx_id_dbs + DB_SEP + key_dbs, id_dbs
+          remove_attribute_from_indexes v_idx_id_dbs, key_dbs, id_dbs
+        }
+      }
+    elsif @use_idx
+      # loop over +@idx1+
+      idx1_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+      db_each(@idx1) { |idx1_key, idx1_value|
+        next unless idx1_key =~ idx1_key_regex
         key_dbs = $'
-        idx_value.split(DB_SEP).each { |idx_id_dbs|
-          db_remove_from_value @store, idx_id_dbs + DB_SEP + key_dbs, id_dbs
-          remove_attribute_from_indexes idx_id_dbs, key_dbs, id_dbs
+        idx1_value.split(DB_SEP).each { |idx1_id_dbs|
+          db_remove_from_value @store, idx1_id_dbs + DB_SEP + key_dbs, id_dbs
+          remove_attribute_from_indexes idx1_id_dbs, key_dbs, id_dbs
         }
       }
     else
@@ -171,11 +178,11 @@ class DataSpace
     
     return unless @use_idx
     
-    truncate_db @idx
+    [ @idx1, @idx2 ].each { |db| truncate_db db }
     
     return unless @use_add_idx
     
-    [@k_idx, @v_idx, @id_idx].each { |db| truncate_db db }
+    [ @k_idx, @v_idx, @id_idx ].each { |db| truncate_db db }
   end
 
   # Adds a new attribute to an existing entity. An entity can have multiple
@@ -206,10 +213,6 @@ class DataSpace
     key_dbs, value_dbs = s_to_dbs(key), s_to_dbs(value)
     
     # lookup in +@store+
-    #
-    # (alternative: lookup in +@idx+ if +@store+ removed)
-    # if db_value_contains?(@idx, value_dbs + DB_SEP + key_dbs, id_dbs)
-    #
     if db_value_contains?(@store, id_dbs + DB_SEP + key_dbs, value_dbs)
       raise AttributeExistsError.new id, key, value
     end
@@ -237,29 +240,62 @@ class DataSpace
     
     id_dbs = s_to_dbs(id)
     
-    if key == Entity::ANY_VALUE
-      remove_entity_attributes id_dbs
+    if key == Entity::ANY_VALUE && value == Entity::ANY_VALUE
+      unless remove_entity_attributes(id_dbs)
+        raise NoAttributeError.new id, key, value
+      end
       return
     end
-      
+    
     key_dbs, value_dbs = s_to_dbs(key), s_to_dbs(value)
-    store_key = id_dbs + DB_SEP + key_dbs
-    
-    store_value = @store[store_key]
-    unless store_value &&
-           (value == Entity::ANY_VALUE ||
-            store_value =~ build_value_grep_regex(value_dbs))
-      raise NoAttributeError.new id, key, value
-    end
-    
-    if value == Entity::ANY_VALUE
-      @store[store_key].split(DB_SEP).each { |value_dbs|
-        remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
+  
+    if key == Entity::ANY_VALUE
+      
+      if @use_idx
+        # lookup in +@idx2+
+        unless idx2_value = @idx2[id_dbs + DB_SEP + value_dbs]
+          raise NoAttributeError.new id, key, value
+        end
+        idx2_value.split(DB_SEP).each { |k_dbs|
+          db_remove_from_value @store, id_dbs + DB_SEP + k_dbs, value_dbs
+          remove_attribute_from_indexes id_dbs, k_dbs, value_dbs
+        }
+      else
+        # loop over +@store+
+        store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+        store_value_regex = build_value_grep_regex value_dbs
+        had_attrib = false
+        db_each(@store) { |store_key, store_value|
+          next unless store_key =~ store_key_regex
+          k_dbs = $'
+          next unless store_value =~ store_value_regex
+          had_attrib = true
+          db_remove_from_value @store, store_key, value_dbs
+          remove_attribute_from_indexes id_dbs, k_dbs, value_dbs
+        }
+        raise NoAttributeError.new id, key, value unless had_attrib
+      end
+      
+    elsif value == Entity::ANY_VALUE
+
+      store_key = id_dbs + DB_SEP + key_dbs
+      # lookup in +@store+
+      unless store_value = @store[store_key]
+        raise NoAttributeError.new id, key, value 
+      end
+      store_value.split(DB_SEP).each { |v_dbs|
+        remove_attribute_from_indexes id_dbs, key_dbs, v_dbs
       }
       db_del @store, store_key
+      
     else
-      db_remove_from_value(@store, store_key, value_dbs)
+      
+      unless db_remove_from_value(@store, id_dbs + DB_SEP + key_dbs,
+                                  value_dbs)
+        raise NoAttributeError.new id, key, value
+      end
       remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
+      
     end
   end
 
@@ -288,7 +324,7 @@ class DataSpace
         results << store_key unless store_key =~ @@DB_SEP_REGEX
       }
     else
-      # lookup at +@store+
+      # lookup in +@store+
       id_dbs = s_to_dbs(query.value)
       results << id_dbs if @store[id_dbs]
     end
@@ -296,10 +332,13 @@ class DataSpace
     # check entities
     results.delete_if { |id_dbs|
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
-      next if entity_complies?(id_dbs, query.children, vars, verb)
+      if entity_complies?(id_dbs, query.children, vars, verb)
+        puts "TRUE #{id_dbs} complies" if verb
+        next
+      end
       if verb
         puts "FALSE #{id_dbs} doesn't comply"
-        puts "==============================="
+        puts "=" * 60
       end
       true
     }
@@ -335,7 +374,10 @@ class DataSpace
     
     return unless @use_idx
     
-    dump_db "index", @idx
+    {
+      "index 1" => @idx1,
+      "index 2" => @idx2
+    }.each { |name, db| dump_db name, db }
     
     return unless @use_add_idx
     
@@ -594,11 +636,13 @@ class DataSpace
   # === Parameters
   # * _id_dbs_:: entity identifier
   #
+  # === Returns
+  # * +true+ if any attributes removed, +false+ if none
+  #
   def remove_entity_attributes(id_dbs)
     if @use_add_idx
       # lookup in +@id_idx+
-      id_idx_value = @id_idx[id_dbs]
-      return unless id_idx_value
+      return false unless id_idx_value = @id_idx[id_dbs]
       id_idx_value.split(DB_SEP).each { |key_dbs|
         store_key = id_dbs + DB_SEP + key_dbs
         @store[store_key].split(DB_SEP).each { |value_dbs|
@@ -609,15 +653,19 @@ class DataSpace
     else
       # loop over +@store+
       store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+      had_attrib = false
       db_each(@store) { |store_key, store_value|
         next unless store_key =~ store_key_regex
+        had_attrib = true
         key_dbs = $'
         db_del @store, store_key
         store_value.split(DB_SEP).each { |value_dbs|
           remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
         }
       }
+      return false unless had_attrib
     end
+    true
   end
   
   # Adds an attribute to the indexes.
@@ -631,7 +679,8 @@ class DataSpace
     
     return unless @use_idx
     
-    db_add_to_value @idx, value_dbs + DB_SEP + key_dbs, id_dbs
+    db_add_to_value @idx1, value_dbs + DB_SEP + key_dbs, id_dbs
+    db_add_to_value @idx2, id_dbs + DB_SEP + value_dbs, key_dbs
 
     return unless @use_add_idx
     
@@ -651,7 +700,8 @@ class DataSpace
 
     return unless @use_idx
     
-    db_remove_from_value @idx, value_dbs + DB_SEP + key_dbs, id_dbs
+    db_remove_from_value @idx1, value_dbs + DB_SEP + key_dbs, id_dbs
+    db_remove_from_value @idx2, id_dbs + DB_SEP + value_dbs, key_dbs
 
     return unless @use_add_idx
     
@@ -677,11 +727,11 @@ class DataSpace
     return true if conditions.empty?   
      
     if verb
-      puts "-------------------------------"
+      puts "-" * 60
       puts id_dbs
       puts conditions.each { |c| c.to_s }
       pp vars
-      puts "-------------------------------"
+      puts "-" * 60
     end
 
     conditions.each { |child|
@@ -712,22 +762,44 @@ class DataSpace
          (child.value == Entity::ANY_VALUE || value_var)
         # any attribute with any value 
         
-        # loop over +@store+
-        store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
-        matched = false
         key_dbs, value_dbs = {}, []
-        db_each(@store) { |store_key, store_value|
-          next unless store_key =~ store_key_regex
-          matched = true
-          if key_var
-            key_dbs[$'] = store_value.split(DB_SEP)
-          else
-            value_dbs = value_dbs | store_value.split(DB_SEP)
+        
+        if @use_add_idx
+          
+          # lookup in +@id_idx+
+          unless id_idx_value = @id_idx[id_dbs]
+            puts "FALSE no @id_idx[#{id_dbs}]" if verb
+            return false
           end
-        }  
-        unless matched
-          puts "FALSE #{id_dbs} not in @store[#{store_key_regex}]" if verb
-          return false
+          id_idx_value.split(DB_SEP).each { |k_dbs|
+            # lookup in +@store+
+            v_dbs = @store[id_dbs + DB_SEP + k_dbs].split(DB_SEP)
+            if key_var
+              key_dbs[k_dbs] = v_dbs
+            else
+              value_dbs = value_dbs | v_dbs
+            end
+          }
+        
+        else
+        
+          # loop over +@store+
+          store_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+          matched = false
+          db_each(@store) { |store_key, store_value|
+            next unless store_key =~ store_key_regex
+            matched = true
+            if key_var
+              key_dbs[$'] = store_value.split(DB_SEP)
+            else
+              value_dbs = value_dbs | store_value.split(DB_SEP)
+            end
+          }  
+          unless matched
+            puts "FALSE #{id_dbs} not in @store[#{store_key_regex}]" if verb
+            return false
+          end
+        
         end
         
         # recurse over all key and/or value values
@@ -772,32 +844,14 @@ class DataSpace
         
         key_dbs = []
 
-        if @use_add_idx && ! key_var # need key value if var
+        if @use_idx
 
-          # lookup at +@v_idx+
-          unless db_value_contains?(@v_idx, value_dbs, id_dbs)
-            puts "FALSE #{id_dbs} not in @v_idx[#{value_dbs}]" if verb
+          # lookup in +@idx2+
+          unless idx2_value = @idx2[id_dbs + DB_SEP + value_dbs]
+            puts "FALSE no @idx2[#{id_dbs + DB_SEP + key_dbs}]" if verb
             return false
           end
-          
-        elsif @use_idx
-
-          # loop over +@idx+ (better than loop over +@store+ as
-          # +@idx.size+ < +@store.size+)
-          idx_key_regex = /^#{Regexp.escape(value_dbs) + @@DB_SEP_ESC}/
-          idx_value_regex = build_value_grep_regex(id_dbs)
-          matched = false
-          db_each(@idx) { |idx_key, idx_value|
-            next unless idx_key =~ idx_key_regex
-            k_dbs = $'
-            next unless idx_value =~ idx_value_regex
-            matched = true
-            key_var ? key_dbs << k_dbs : false # collect var values or break
-          }
-          unless matched
-            puts "FALSE #{id_dbs} not in @idx[#{idx_key_regex}]" if verb
-            return false
-          end
+          key_dbs = key_dbs | idx2_value.split(DB_SEP) if key_var
 
         else
 
@@ -848,7 +902,7 @@ class DataSpace
       elsif child.value == Entity::ANY_VALUE || value_var
         # the attribute must exist with any value
         
-        # lookup at +@store+
+        # lookup in +@store+
         unless store_value = @store[id_dbs + DB_SEP + key_dbs]
           puts "FALSE no @store[#{id_dbs + DB_SEP + key_dbs}]" if verb
           return false
@@ -874,7 +928,7 @@ class DataSpace
       else
         # the attribute must exist and must have the value
         
-        # lookup at +@store+
+        # lookup in +@store+
         store_key = id_dbs + DB_SEP + key_dbs
         unless db_value_contains? @store, store_key, value_dbs
           puts "FALSE #{value_dbs} not in @store[#{store_key}]" if verb
@@ -890,6 +944,7 @@ class DataSpace
       end
     }      
 
+    puts "TRUE" if verb
     true
   end
 

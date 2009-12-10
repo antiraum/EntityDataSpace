@@ -178,6 +178,10 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
       @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
       assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE,
+                             Entity::ANY_VALUE
+      }
+      assert_raise(DataSpace::NoAttributeError) {
         @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
       }
       assert_raise(DataSpace::NoAttributeError) {
@@ -190,30 +194,55 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
       @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
       assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
+      }
+      assert_raise(DataSpace::NoAttributeError) {
         @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
       }
       assert_raise(DataSpace::NoAttributeError) {
         @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
       }
       assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
+      
+      # test all attributes with same value
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, TestVars::STR1),
+                     Entity.new(TestVars::KEY2, TestVars::STR1)
+                   ]))
+      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, TestVars::STR1
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, TestVars::STR1
+      }
+      assert_equal [],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, TestVars::STR1)
+                   ]))
+      assert_equal [],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY2, TestVars::STR1)
+                   ]))
       
       # test one attribute of several with same key
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
       assert_equal [ TestVars::ID1 ],
                    @ds.search(RootEntity.new(TestVars::ID1, [
-                      Entity.new(TestVars::KEY2, TestVars::STR1),
-                      Entity.new(TestVars::KEY2, TestVars::STR2)
+                     Entity.new(TestVars::KEY2, TestVars::STR1),
+                     Entity.new(TestVars::KEY2, TestVars::STR2)
                    ]))
       @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
       assert_equal [],
                    @ds.search(RootEntity.new(TestVars::ID1, [
-                      Entity.new(TestVars::KEY2, TestVars::STR1),
-                      Entity.new(TestVars::KEY2, TestVars::STR2)
+                     Entity.new(TestVars::KEY2, TestVars::STR1),
+                     Entity.new(TestVars::KEY2, TestVars::STR2)
                    ]))
       assert_equal [ TestVars::ID1 ],
                    @ds.search(RootEntity.new(TestVars::ID1, [
-                      Entity.new(TestVars::KEY2, TestVars::STR2)
+                     Entity.new(TestVars::KEY2, TestVars::STR2)
                    ]))
     }
   end
@@ -377,7 +406,19 @@ class DataSpaceTest < Test::Unit::TestCase
                      Entity.new(TestVars::VAR1, TestVars::VAR3)
                    ]))
       
-      # TODO more variable and wildcard tests
+      # check triple usage of variable
+      assert_equal [ TestVars::ID2 ],
+                   @ds.search(RootEntity.new(TestVars::VAR1, [
+                     Entity.new(TestVars::VAR2, TestVars::VAR3, [
+                       Entity.new(TestVars::VAR2, TestVars::VAR3, [
+                         Entity.new(TestVars::KEY2, Entity::ANY_VALUE, [
+                           Entity.new(TestVars::KEY2, TestVars::VAR3, [
+                             Entity.new(Entity::ANY_VALUE, TestVars::VAR3)
+                           ])
+                         ])
+                       ])
+                     ])
+                   ]))
     }
   end
   
@@ -410,35 +451,6 @@ class DataSpaceTest < Test::Unit::TestCase
       # test invalid id
       assert_raise(DataSpace::NoEntityError) {
         @ds.get_entity TestVars::ID2
-      }
-    }
-  end
-  
-  def skip_test_exhaustive
-    
-    run_test_block {
-    
-      num_nodes = 50
-    
-      # fully connected graph
-      (0..num_nodes).each { |n|
-        @ds.insert_entity TestVars::ID1 + n.to_s
-      }
-      (0..num_nodes).each { |n1|
-        (0..num_nodes).each { |n2|
-          @ds.insert_attribute TestVars::ID1 + n1.to_s, TestVars::KEY1,
-                               TestVars::ID1 + n2.to_s
-        }
-      }
-      
-      # e = RootEntity.new TestVars::ID1 + "*"
-      # [1..99].each { |n|
-      #   e.children << Entity.new TestVars::ID1 + "*"
-      #   
-      # }
-      
-      (0..num_nodes).each { |n|
-        @ds.delete_entity TestVars::ID1 + n.to_s
       }
     }
   end
