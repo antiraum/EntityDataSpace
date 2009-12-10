@@ -2,10 +2,14 @@
 
 $LOAD_PATH.unshift File.join(File.dirname(__FILE__), "data_space")
 require "data_space"
+require "root_entity"
+require "entity"
 
-# This scripts shows how to use the data space.
+# This scripts shows how to use the data space implementation.
+#
+# Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
 
-# 1. Create +DataSpace+ object
+# 1. Create the DataSpace object
 #
 ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb")
 
@@ -29,7 +33,8 @@ ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb")
   %w{TRENTO isIn ITALY}, %w{TRENTO hasItalianName "Trento"},
   %w{TRENTO hasGermanName "Trient"}, %w{MILAN isIn ITALY},
   %w{MILAN hasItalianName "Milano"}, %w{MILAN hasGermanName "Mailand"},
-  %w{PETER hasDaughter SUSAN}, %w{SUSAN hasFather PETER} ].each { |attrib|
+  %w{PETER hasDaughter SUSAN}, %w{SUSAN hasFather PETER},
+  %w{PETER isCookingFor PETER}, %w{PETER isCookingFor SUSAN} ].each { |attrib|
   begin
     ds.insert_attribute attrib.shift, attrib.shift, attrib.shift
   rescue DataSpace::NoEntityError => e
@@ -92,8 +97,43 @@ puts ds.search(
   ])
 ).map { |id| ds.get_entity id }
 
-# 5. Can 
+# 5. Queries can also contain variables
+#
+puts "\n"
+puts "All entities that have the same surname and are related:"
+puts "--------------------------------------------------------"
+puts ds.search(
+  RootEntity.new("*", [
+    Entity.new("hasSurname", "$x"),
+    Entity.new("*", "*", [
+      Entity.new("hasSurname", "$x")
+    ])
+  ])
+).map { |id| ds.get_entity id }
 
-# 6. Close the +DataSpace+
+puts "\n"
+puts "All entities that are related to each other:"
+puts "--------------------------------------------"
+puts ds.search(
+  RootEntity.new("$x", [
+    Entity.new("*", "*", [
+      Entity.new("*", "$x")
+    ])
+  ])
+).map { |id| ds.get_entity id }
+
+puts "\n"
+puts "All entities that are related to oneself and to another entity with the"
+puts "same attribute:"
+puts "-----------------------------------------------------------------------"
+puts ds.search(
+  RootEntity.new("$x", [
+    Entity.new("$y", "$x"),
+    Entity.new("$y", "*")
+  ])
+).map { |id| ds.get_entity id }
+
+# 6. Close the data space
+#
 # ds.clear
 ds.close
