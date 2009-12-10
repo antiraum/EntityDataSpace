@@ -331,6 +331,7 @@ class DataSpace
     
     # check entities
     results.delete_if { |id_dbs|
+      # TODO enable variables among results
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
       if entity_complies?(id_dbs, query.children, vars, verb)
         puts "TRUE #{id_dbs} complies" if verb
