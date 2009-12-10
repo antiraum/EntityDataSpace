@@ -82,7 +82,7 @@ MODES.each { |mode_name, mode_args|
     #   ds.insert_attribute TestVars::ID2, TestVars::KEY1, TestVars::ID1 + "1"
     # }
     x.report("search") {
-      ds.search(query)
+      ds.search(query).map { |id| ds.get_entity id }
     }
     # x.report("search") {
     #   puts ds.search(RootEntity.new(Entity::ANY_VALUE, [
