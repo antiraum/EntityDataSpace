@@ -419,6 +419,9 @@ class DataSpaceTest < Test::Unit::TestCase
                        ])
                      ])
                    ]))
+      
+      # TODO test same variable for key and value
+      # TODO test common variables among root children
     }
   end
   
