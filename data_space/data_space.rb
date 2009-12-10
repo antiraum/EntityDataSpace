@@ -14,14 +14,17 @@ require "entity"
 #
 # A entity is saved in this way:
 # * entity_id -> nil
-# * entity_id///attrib1_key -> attrib1_value1
-# * entity_id///attrib2_key -> attrib2_value1///attrib2_value2///...
+# * entity_id///attribute1_key -> attribute1_value1///attribute1_value2///...
 # * ...
 #
-# If the +use_idx+ parameter is set to true, the data space uses an inverted
+# If the +use_idx+ parameter is set to true, the data space uses two inverted
 # indexes with the following structure:
-# * attrib_value///attrib_key -> entity_id1///entity_id2///...
-# * ...
+# * first inverted index:
+#   * attrib_value///attrib_key -> entity_id1///entity_id2///...
+#   * ...
+# * second inverted index:
+#   * entity_id///attribute_value -> attribute_key1///attribute_key2///...
+#   * ...
 #
 # If the +use_add_idx+ parameter is set to true, these additional indexes are
 # used:
@@ -54,8 +57,8 @@ class DataSpace
   # === Parameters
   # * _bdb_path_:: directory containing the Berkeley DB files to use
   #             :: (is created if doesn't exist)
-  # * _use_idx_:: use inverted index
-  # * _use_add_idx_:: use inverted index and additional indexes
+  # * _use_idx_:: use inverted indexes
+  # * _use_add_idx_:: use inverted indexes and additional indexes
   #
   def initialize(bdb_path, use_idx = true, use_add_idx = true)
     
