@@ -32,26 +32,34 @@ class Entity
     @key, @value, @children = key, value, children
   end
   
-  # def Entity.from_s(str)
-  #   new key, value, childs
-  # end
-  
-  def Entity.split_s(str)
-    # "(?<!\\\\)%.*$"
-    key, value, childs_str = 
-    case str
-      when /^([^:]+):([^\(]+)(.*)$/
-        [$1, $2, $3]
-      when /^([^\(]+)(.*)$/
-        [nil, $1, $2]
+  def Entity.from_s(str, verb = false)
+    
+    if str =~ @@COMMA_REGEX
+      return nil
+    end
+    
+    # transform brackets into unique strings
+    bracket_count = 0
+    brackets = {}
+    str.gsub!(/[\(\)]/) { |b|
+      if b =~ /\(/
+        bracket_count += 1
+        brackets[bracket_count] = false
+        "(#{bracket_count})"
       else
-        return nil
-    end
-    childs = []
-    if childs_str =~ /^\s*\((.+)\)\s*$/
-      childs = $1.split(/, ?/).map { |s| split_s(s) }
-    end
-    Entity.new key, value, childs
+        bracket_id = 0
+        bracket_count.downto(1) { |id|
+          next if brackets[id]
+          bracket_id = id
+          break
+        }
+        brackets[bracket_id] = 1
+        "(#{bracket_id})"
+      end
+    }
+    puts str if verb
+    
+    parse_s(str, verb)
   end
   
   def to_s(indent = 0)
@@ -77,6 +85,61 @@ class Entity
     return 1 unless other.key
     @key <=> other.key 
   end
+  
+  private
+  
+  @@COMMA = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
+  @@COMMA_REGEX = /#{Regexp.escape(@@COMMA)}/
+  
+  def Entity.parse_s(str, verb)
+    if verb
+      puts "-" * 60
+      puts str
+    end
+    
+    # separate key, value, and childs
+    key, value, childs_str = 
+    case str
+      when /^
+             ([^:]+)
+             :
+             ([^\(]+)
+             (.*)
+           $/x
+        [$1, $2, $3]
+      when /^
+             ([^\(]+)
+             (.*)
+           $/x
+        [nil, $1, $2]
+      else
+        return nil
+    end
+    if verb
+      puts "key: " + key
+      puts "value: " + value
+    end
+    
+    # split childs
+    childs = []
+    if childs_str =~ /^
+                       \s*
+                       (\(\d+\))(.+)\1
+                       \s*
+                     $/x
+      child_str = $2
+      puts "child_str: " + child_str if verb
+      if child_str =~ /\(\d+\)/
+        # mask kommas in subchilds
+        child_str.gsub!(/(\(\d+\)).*?\1/) { |subchild_str|
+           subchild_str.gsub(/,/, @@COMMA)
+        }
+        puts "masked: " + child_str if verb
+      end
+      childs = child_str.split(/, ?/).map { |child|
+        parse_s(child.gsub(@@COMMA_REGEX, ","), verb)
+      }
+    end
+    Entity.new key, value, childs
+  end
 end
-
-# puts Entity.split_s("bla:blu(bl:bl, ha:ha(b:b, x:y), x:y,a:b(karl:otto))")

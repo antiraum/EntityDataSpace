@@ -25,6 +25,13 @@ class EntityTest < Test::Unit::TestCase
     assert_equal TestVars::STR1, e.children[1].value
   end
   
+  def test_from_s
+    str = "#{TestVars::KEY1}:#{TestVars::ID1}(" +
+          "#{TestVars::KEY1}:#{ TestVars::ID2}," + 
+          "#{TestVars::KEY2}:#{TestVars::STR1})"
+    assert_equal build_entity, Entity.from_s(str)
+  end
+  
   def test_to_s
     e = build_entity
     expected = <<STR
