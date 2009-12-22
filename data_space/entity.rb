@@ -32,6 +32,20 @@ class Entity
     @key, @value, @children = key, value, children
   end
   
+  # Creates an +Entity+ object tree from a string in the following format:
+  #
+  # * key:value(key:value, key:value(key:value, key:value))
+  #
+  # Parsing capabilities are limited. Currently the key and values cannot 
+  # contain "(", ")", ":", nor ",".
+  #
+  # === Parameters
+  # * _str_:: string to parse
+  # * _verb_:: print debug output
+  #
+  # === Returns
+  # * +Entity+ object tree
+  #
   def Entity.from_s(str, verb = false)
     
     if str =~ @@COMMA_REGEX
@@ -57,7 +71,6 @@ class Entity
         "(#{bracket_id})"
       end
     }
-    puts str if verb
     
     parse_s(str, verb)
   end
@@ -88,7 +101,8 @@ class Entity
   
   private
   
-  @@COMMA = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
+  # @@COMMA = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
+  @@COMMA = "XXX"
   @@COMMA_REGEX = /#{Regexp.escape(@@COMMA)}/
   
   def Entity.parse_s(str, verb)
@@ -101,23 +115,30 @@ class Entity
     key, value, childs_str = 
     case str
       when /^
-             ([^:]+)
+             \s*
+             ([^:]*[^:\s]+)
+             \s*
              :
-             ([^\(]+)
+             \s*
+             ([^\(]*[^\(\s]+)
              (.*)
+             \s*
            $/x
         [$1, $2, $3]
       when /^
+             \s*
              ([^\(]+)
              (.*)
+             \s*
            $/x
         [nil, $1, $2]
       else
         return nil
     end
     if verb
-      puts "key: " + key
+      puts "key: " + (key ? key : "nil")
       puts "value: " + value
+      puts "childs: " + childs_str
     end
     
     # split childs
@@ -127,16 +148,16 @@ class Entity
                        (\(\d+\))(.+)\1
                        \s*
                      $/x
-      child_str = $2
-      puts "child_str: " + child_str if verb
-      if child_str =~ /\(\d+\)/
+      childs_str = $2
+      puts "childs_str: " + childs_str if verb
+      if childs_str =~ /\(\d+\)/
         # mask kommas in subchilds
-        child_str.gsub!(/(\(\d+\)).*?\1/) { |subchild_str|
-           subchild_str.gsub(/,/, @@COMMA)
+        childs_str.gsub!(/(\(\d+\)).*?\1/) { |subchilds_str|
+           subchilds_str.gsub(/,/, @@COMMA)
         }
-        puts "masked: " + child_str if verb
+        puts "masked: " + childs_str if verb
       end
-      childs = child_str.split(/, ?/).map { |child|
+      childs = childs_str.split(/, ?/).map { |child|
         parse_s(child.gsub(@@COMMA_REGEX, ","), verb)
       }
     end

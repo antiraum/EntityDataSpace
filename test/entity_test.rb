@@ -26,10 +26,21 @@ class EntityTest < Test::Unit::TestCase
   end
   
   def test_from_s
-    str = "#{TestVars::KEY1}:#{TestVars::ID1}(" +
-          "#{TestVars::KEY1}:#{ TestVars::ID2}," + 
-          "#{TestVars::KEY2}:#{TestVars::STR1})"
-    assert_equal build_entity, Entity.from_s(str)
+    e = Entity.new("key1", "id1", [
+          Entity.new("key1", "id2", [
+            Entity.new("key 3", "id 3")
+          ]),
+          Entity.new("key2", '"str1"'),
+          Entity.new("key2", "id2", [
+            Entity.new("key2", '"str2"'),
+            Entity.new("key1", "id1" , [
+              Entity.new("key 3", '" str 3 "')
+            ])
+          ])
+        ])
+    str = 'key1:id1 (key1 : id2 (key 3 : id 3) , key2: "str1", ' + 
+          'key2 : id2(key2:"str2",key1 :id1(key 3:" str 3 ")))';
+    assert_equal e, Entity.from_s(str)
   end
   
   def test_to_s
