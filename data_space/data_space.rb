@@ -23,7 +23,7 @@ require "entity"
 #   * attrib_value///attrib_key -> entity_id1///entity_id2///...
 #   * ...
 # * second inverted index:
-#   * entity_id///attribute_value -> attribute_key1///attribute_key2///...
+#   * entity_id///attrib_value -> attrib_key1///attrib_key2///...
 #   * ...
 #
 # If the +use_add_idx+ parameter is set to true, these additional indexes are
@@ -302,8 +302,8 @@ class DataSpace
     end
   end
 
-  # Performs a search specified by a +Entity+ object tree. Returns an array of
-  # matching entity ids as result.
+  # Performs a search specified by an +Entity+ object tree. Returns an array
+  # of matching entity ids as result.
   #
   # === Parameters
   # * _query_:: +RootEntity+ object
