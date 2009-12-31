@@ -81,7 +81,7 @@ puts ds.search(RootEntity.new("SUSAN")).map { |id| ds.get_entity id }
 
 puts "\n"
 puts "All entities that have a daughter who has a father who likes Pizza,"
-puts "has a VW_GOLF and lives in an entity with an attribute \"Trient\":"
+puts "has a VW Golf and lives in an entity with an attribute \"Trient\":"
 puts "-------------------------------------------------------------------"
 puts ds.search(
   RootEntity.new("*", [
@@ -133,7 +133,16 @@ puts ds.search(
   ])
 ).map { |id| ds.get_entity id }
 
-# 6. Close the data space
+# 6. The Entity class has a basic parsing support for query strings
+#
+puts "\n"
+puts "All entities that live and work in a city in the same country:"
+puts "--------------------------------------------------------------"
+puts ds.search(
+  Entity.from_s("*(livesIn:*(isIn:$1), worksIn:*(isIn:$1))")
+).map { |id| ds.get_entity id }
+
+# 7. Close the data space
 #
 # ds.clear
 ds.close
