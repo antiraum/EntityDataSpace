@@ -314,8 +314,8 @@ class DataSpace
   #
   def search(query, verb = false)
     
-    unless query.instance_of? RootEntity
-      raise ArgumentError, "query must be an instance of RootEntity"
+    unless query.instance_of?(RootEntity) || query.instance_of?(Entity)
+      raise ArgumentError, "query must be an instance of RootEntity or Entity"
     end
     
     results = []

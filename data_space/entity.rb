@@ -101,8 +101,7 @@ class Entity
   
   private
   
-  # @@COMMA = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
-  @@COMMA = "XXX"
+  @@COMMA = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
   @@COMMA_REGEX = /#{Regexp.escape(@@COMMA)}/
   
   def Entity.parse_s(str, verb)
@@ -116,7 +115,7 @@ class Entity
     case str
       when /^
              \s*
-             ([^:]*[^:\s]+)
+             ([^:\(]*[^:\(\s]+)
              \s*
              :
              \s*
@@ -127,7 +126,7 @@ class Entity
         [$1, $2, $3]
       when /^
              \s*
-             ([^\(]+)
+             ([^\(]*[^\(\s]+)
              (.*)
              \s*
            $/x
