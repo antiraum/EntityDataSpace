@@ -590,12 +590,12 @@ class DataSpace
 
   class MappingExistsError < StandardError
 
-    def initialize(id, attribs, maps)
-      @id, @attribs, @maps = id, attribs, maps
-      super "'#{@attribs}' are already mapped to '#{@maps}' for entity '#{@id}'."
+    def initialize(id, attribs1, attribs2)
+      @id, @attribs1, @attribs2 = id, attribs1, attribs2
+      super "'#{@attribs1}' and '#{@attribs2}' are already mapped for entity '#{@id}'."
     end
 
-    attr_reader :id, :attribs, :maps
+    attr_reader :id, :attribs1, :attribs2
   end
   
   class NoEntityError < StandardError
@@ -620,12 +620,12 @@ class DataSpace
 
   class NoMappingError < StandardError
 
-    def initialize(id, attribs, maps)
-      @id, @attribs, @maps = id, attribs, maps
-      super "'#{@attribs}' are not mapped to '#{@maps}' for entity '#{@id}'."
+    def initialize(id, attribs1, attribs2)
+      @id, @attribs1, @attribs2 = id, attribs1, attribs2
+      super "'#{@attribs1}' and '#{@attribs2}' are not mapped for entity '#{@id}'."
     end
 
-    attr_reader :id, :attribs, :maps
+    attr_reader :id, :attribs1, :attribs2
   end
 
   private
