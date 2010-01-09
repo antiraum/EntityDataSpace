@@ -39,7 +39,7 @@ class EntityTest < Test::Unit::TestCase
           ])
         ])
     str = 'key1:id1 (key1 : id2 (key 3 : id 3) , key2: "str1", ' + 
-          'key2 : id2(key2:"str2",key1 :id1(key 3:" str 3 ")))';
+          'key2 : id2(key2:"str2",key1 :id1(key 3:" str 3 ")))'
     assert_equal e, Entity.from_s(str)
   end
   
