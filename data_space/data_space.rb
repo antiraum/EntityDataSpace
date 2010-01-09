@@ -38,6 +38,15 @@ require "entity"
 #   * entity_id -> attrib_key1///attrib_key2///...
 #   * ...
 #
+# The data space supports mappings for attributes. One or a set of attributes
+# for an entity can be mapped to a synonym attribute or set of attributes of
+# the same entity. The mappings can be used by the search method.
+#
+# The mappings are saved in this way:
+# * entity_id///serialized_original_attrib_set ->
+#   serialized_synonym_attrib_set1///serialized_synonym_attrib_set2///...
+# * ...
+#
 # Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
 #
 # :title:DataSpace
@@ -68,6 +77,7 @@ class DataSpace
     FileUtils::mkdir bdb_path unless File.exists? bdb_path
     
     @store = open_db(bdb_path, "store")
+    @maps = open_db(bdb_path, "mappings")
     
     return unless @use_idx
     
@@ -87,6 +97,7 @@ class DataSpace
   def close
     
     close_db @store
+    close_db @maps
     
     return unless @use_idx
     
@@ -178,6 +189,7 @@ class DataSpace
   def clear
     
     truncate_db @store
+    truncate_db @maps
     
     return unless @use_idx
     
@@ -229,7 +241,8 @@ class DataSpace
     add_attribute_to_indexes id_dbs, key_dbs, value_dbs
   end
 
-  # Removes an existing attribute from an entity.
+  # Removes an existing attribute from an entity. Also removes the attribute
+  # from all mappings containing it.
   #
   # === Parameters
   # * _id_:: identifier of the entity
@@ -241,7 +254,7 @@ class DataSpace
   #
   def delete_attribute(id, key, value)
     
-    id_dbs = s_to_dbs(id)
+    id_dbs, key_dbs, value_dbs = s_to_dbs(id), s_to_dbs(key), s_to_dbs(value)
     
     if key == Entity::ANY_VALUE && value == Entity::ANY_VALUE
       unless remove_entity_attributes(id_dbs)
@@ -249,8 +262,6 @@ class DataSpace
       end
       return
     end
-    
-    key_dbs, value_dbs = s_to_dbs(key), s_to_dbs(value)
   
     if key == Entity::ANY_VALUE
       
@@ -299,6 +310,169 @@ class DataSpace
       end
       remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
       
+    end  
+      
+    return if key == Entity::ANY_VALUE && value == Entity::ANY_VALUE
+      
+    # remove from mappings
+    maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+    
+    # loop over +@maps+
+    db_each(@maps) { |maps_key, maps_value|
+      next unless maps_key =~ maps_key_regex
+
+      attribs = dbs_to_hash $'
+      changed_attribs = false
+      
+      if key == Entity::ANY_VALUE
+        
+        contains_attrib = false
+        attribs.each { |k, v|
+          next unless value == v
+          contains_attrib = true
+          attribs.delete k
+        }
+        
+        if contains_attrib
+          db_del @maps, maps_key
+          next if attribs.empty?
+          @maps[id_dbs + DB_SEP + hash_to_dbs(attribs)] = maps_value
+          changed_attribs = true
+        end
+        
+      elsif attribs.key?(key) &&
+            (value == Entity::ANY_VALUE || attribs[key] == value)
+      
+        db_del @maps, maps_key
+        next if attribs.length == 1
+    
+        attribs.delete key
+        @maps[id_dbs + DB_SEP + hash_to_dbs(attribs)] = maps_value
+        changed_attribs = true
+      end
+      
+      maps_value.split(DB_SEP).each { |maps_dbs|
+        
+        maps = dbs_to_hash maps_dbs
+        if key == Entity::ANY_VALUE
+          
+          contains_attrib = false
+          maps.each { |k, v|
+            next unless value == v
+            contains_attrib = true
+            maps.delete k
+          }
+
+          if contains_attrib
+            db_remove_from_value @maps, maps_key, maps_dbs
+            next if maps.empty?
+            db_add_to_value @maps, maps_key, hash_to_dbs(maps)
+          end
+          
+        elsif maps.key?(key) && 
+              (value == Entity::ANY_VALUE || maps[key] == value)
+      
+          db_remove_from_value @maps, maps_key, maps_dbs
+          next if maps.length == 1
+    
+          maps.delete key
+          db_add_to_value @maps, maps_key, hash_to_dbs(maps)
+        end
+        
+        next unless changed_attribs && maps.contains?(attribs)
+        # original attributes are included in synonym attributes, this
+        # mapping makes no sense anymore
+        db_remove_from_value @maps, maps_key, maps_dbs
+      }
+    }
+  end
+
+  # Adds a new mapping for one or a set of existing attributes of an entity to
+  # another existing attribute or set of attributes of the same entity. Use
+  # this to express attribute synonymity.
+  #
+  # === Parameters
+  # * _id_:: identifier of the attributes' entity
+  # * _attribs_:: hash with the original attribute name/value pairs
+  # * _maps_:: hash with the synonym attribute name/value pairs
+  #
+  # === Throws
+  # * _ArgumentError_:: if _attrib_ or _map_ is no hash
+  # * _NoAttributeError_:: if a (original or synonym) attribute doesn't exist
+  # * _MappingExistsError_:: if the mapping already exists
+  #
+  def insert_attribute_mapping(id, attribs, maps)
+
+    unless attribs.instance_of?(Hash) && maps.instance_of?(Hash)
+      raise ArgumentError, "attribs and maps must be hashes"
+    end
+
+    if maps.contains? attribs
+      raise ArgumentError, "original attributes are included in synonym attributes, this mapping makes no sense"
+    end
+
+    id_dbs = s_to_dbs(id)
+
+    [attribs, maps].each { |hash|
+      hash.each { |k, v|
+        unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(k),
+                                  s_to_dbs(v)
+          raise NoAttributeError.new id, k, v
+        end
+      }
+    }
+
+    maps_key = id_dbs + DB_SEP + hash_to_dbs(attribs)
+    maps_dbs = hash_to_dbs maps
+    if db_value_contains? @maps, maps_key, maps_dbs
+      raise MappingExistsError.new id, attribs, maps
+    end
+
+    db_add_to_value @maps, maps_key, maps_dbs
+  end
+
+  # Deletes an existing mapping for one or a set of attributes of an entity.
+  #
+  # === Parameters
+  # * _id_:: identifier of the attributes' entity
+  # * _attrib_:: hash with the original attribute name/value pairs
+  # * _map_:: hash with the synonym attribute name/value pairs (or * to remove
+  #        :: all mappings for _attrib_)
+  #
+  # === Throws
+  # * _ArgumentError_:: if _attrib_ is no hash or _map_ is neither hash nor *
+  # * _NoAttributeError_:: if a (original or synonym) attribute doesn't exist
+  # * _NoMappingError_:: if the mapping does not exist
+  #
+  def delete_attribute_mapping(id, attrib, map)
+
+    unless map.instance_of?(Hash) || map == Entity::ANY_VALUE
+      raise ArgumentError, "map must be a Hash"
+    end
+
+    id_dbs, key_dbs, value_dbs = s_to_dbs(id), s_to_dbs(key), s_to_dbs(value)
+
+    unless db_value_contains? @store, id_dbs + DB_SEP + key_dbs, value_dbs
+      raise NoAttributeError.new id, key, value
+    end
+
+    maps_key = id_dbs + DB_SEP + key_dbs + DB_SEP + value_dbs
+
+    if map.instance_of? Hash
+      map_str = Marshal.dump(map)
+
+      maps = get_attribute_mappings(id_dbs, key_dbs, value_dbs)
+      unless maps.include? map_str
+        raise NoMappingError.new id, key, value, map
+      end
+
+      # cannot delete single pair, delete all and re-insert others
+      db_del @maps, maps_key
+
+      maps.delete map_str
+      maps.each { |m| @maps[maps_key] = m }
+    else
+      db_del @maps, maps_key
     end
   end
 
@@ -307,12 +481,13 @@ class DataSpace
   #
   # === Parameters
   # * _query_:: +RootEntity+ object
+  # * _use_maps_:: use mappings
   # * _verb_:: print debug output
   #
   # === Returns
   # * Array of entity ids.
   #
-  def search(query, verb = false)
+  def search(query, use_maps = false, verb = false)
     
     unless query.instance_of?(RootEntity) || query.instance_of?(Entity)
       raise ArgumentError, "query must be an instance of RootEntity or Entity"
@@ -336,7 +511,7 @@ class DataSpace
     results.delete_if { |id_dbs|
       # TODO enable variables among results
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
-      if entity_complies?(id_dbs, query.children, vars, verb)
+      if entity_complies?(id_dbs, query.children, vars, use_maps, verb)
         puts "TRUE #{id_dbs} complies" if verb
         next
       end
@@ -375,6 +550,7 @@ class DataSpace
   def dump
     
     dump_db "store", @store
+    dump_db "mappings", @maps
     
     return unless @use_idx
     
@@ -395,10 +571,11 @@ class DataSpace
   class OpenDatabaseError < StandardError
     
     def initialize(db)
-      super "Error opening database file '#{db}'."
+      @db = db
+      super "Error opening database file '#{@db}'."
     end
     
-    attr_reader :id
+    attr_reader :db
   end
 
   class EntityExistsError < StandardError
@@ -420,6 +597,16 @@ class DataSpace
     
     attr_reader :id, :key, :value
   end
+
+  class MappingExistsError < StandardError
+
+    def initialize(id, attrib, map)
+      @id, @attrib, @map = id, attrib, map
+      super "Attributes '#{@attrib}' are already mapped to '#{@map}' for entity '#{@id}'."
+    end
+
+    attr_reader :id, :attrib, :map
+  end
   
   class NoEntityError < StandardError
     
@@ -438,7 +625,17 @@ class DataSpace
       super "Attribute '#{@key}' with value '#{@value}' for entity '#{@id}' does not exists."
     end
     
-    attr_reader :id, :key
+    attr_reader :id, :key, :value
+  end
+
+  class NoMappingError < StandardError
+
+    def initialize(id, attrib, map)
+      @id, @attrib, @map = id, attrib, map
+      super "Attributes '#{@attrib}' are not mapped to '#{@map}' for entity '#{@id}'."
+    end
+
+    attr_reader :id, :attrib, :map
   end
 
   private
@@ -510,7 +707,6 @@ class DataSpace
   # * _key_dbs_:: key of the pair
   #
   def db_del(db, key_dbs)
-    # @store.delete key
     db.del(nil, key_dbs, 0)
   end
   
@@ -521,7 +717,6 @@ class DataSpace
   # * _db_:: database
   #
   def db_each(db)
-    # @store.each { |k, v| yield k, v }
     dbc = db.cursor(nil, 0)
     k, v = dbc.get(nil, nil, Bdb::DB_FIRST)
     while k
@@ -605,14 +800,14 @@ class DataSpace
     true
   end
   
-  # Prepares entity id or attribute key for usage as a database key by
-  # replacing occurences of +DB_SEP+.
+  # Prepares string for usage in the database by replacing occurences of
+  # +DB_SEP+.
   #
   # === Parameters
-  # * _s_:: entity identifier, attribute name or attribute value
+  # * _s_:: string
   #
   # === Throws
-  # * _ArgumentError_:: if _str_ contains an occurance of DB_INVALID
+  # * _ArgumentError_:: if _s_ contains an occurance of DB_INVALID
   #
   def s_to_dbs(s)
     
@@ -628,11 +823,29 @@ class DataSpace
   # Reverts the replacements done by +s_to_dbs+.
   #
   # === Parameters
-  # * _s_dbs_:: entity identifier, attribute name or attribute value 
-  #          :: modified by +s_to_dbs+
+  # * _dbs_:: string modified by +s_to_dbs+
   #
-  def dbs_to_s(s_dbs)
-    s_dbs.gsub @@DB_INVALID_REGEX, DB_SEP
+  def dbs_to_s(dbs)
+    dbs.gsub @@DB_INVALID_REGEX, DB_SEP
+  end
+  
+  # Prepares a hash for usage in the database by serializing and replacing
+  # occurences of +DB_SEP+ in the serialization.
+  #
+  # === Parameters
+  # * _hash_:: hash
+  #
+  def hash_to_dbs(hash)
+    s_to_dbs Marshal.dump(hash)
+  end
+  
+  # Reverts the modification done by +hash_to_dbs+.
+  #
+  # === Parameters
+  # * _dbs_:: hash modified by +hash_to_dbs+
+  #
+  def dbs_to_hash(dbs)
+    Marshal.load dbs_to_s(dbs)
   end
 
   # Removes all attributes of an entity.
@@ -669,6 +882,12 @@ class DataSpace
       }
       return false unless had_attrib
     end
+    maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+    # loop over +@maps+
+    db_each(@maps) { |maps_key, maps_value|
+      next unless maps_key =~ maps_key_regex
+      db_del @maps, maps_key
+    }
     true
   end
   
@@ -714,6 +933,29 @@ class DataSpace
     db_remove_from_value @id_idx, id_dbs, key_dbs
   end
   
+  # Get mappings for an attribute.
+  #
+  # === Parameters
+  # * _id_dbs_:: identifier of the attributes' entity
+  # * _key_dbs_:: name of the attribute
+  # * _value_dbs_:: value of the attribute
+  #
+  # === Returns
+  # * array of mapping serializations
+  #
+  def get_attribute_mappings(id_dbs, key_dbs, value_dbs)
+    maps = []
+    dbc = @maps.cursor(nil, 0)
+    k, v = dbc.get(id_dbs + DB_SEP + key_dbs + DB_SEP + value_dbs,
+                   nil, Bdb::DB_SET)
+    while k
+      maps << v
+      k, v = dbc.get(nil, nil, Bdb::DB_NEXT_DUP)
+    end
+    dbc.close
+    maps
+  end
+  
   # Checks if an entity fulfills the conditions expressed by +Entity+ objects.
   # Runs recursively through the +Entity+ object trees.
   #
@@ -721,12 +963,14 @@ class DataSpace
   # * _id_dbs_:: entity identifier
   # * _conditions_:: array of +Entity+ object (trees)
   # * _vars_:: hash of query variables with their values
+  # * _use_maps_:: use mappings
   # * _verb_:: print debug output
   #
   # === Returns
   # * +true+ if conditions fulfilled, +false+ if not
   #
-  def entity_complies?(id_dbs, conditions, vars = {}, verb = false)
+  def entity_complies?(id_dbs, conditions, vars = {},
+                       use_maps = false, verb = false)
 
     return true if conditions.empty?   
      
@@ -773,6 +1017,7 @@ class DataSpace
           # lookup in +@id_idx+
           unless id_idx_value = @id_idx[id_dbs]
             puts "FALSE no @id_idx[#{id_dbs}]" if verb
+            # XXX check mappings
             return false
           end
           id_idx_value.split(DB_SEP).each { |k_dbs|
@@ -801,6 +1046,7 @@ class DataSpace
           }  
           unless matched
             puts "FALSE #{id_dbs} not in @store[#{store_key_regex}]" if verb
+            # XXX check mappings
             return false
           end
         
@@ -840,6 +1086,7 @@ class DataSpace
         end
         unless found_value
           puts "FALSE no possible key and/or value value" if verb
+          # XXX check mappings
           return false
         end
         
@@ -853,6 +1100,7 @@ class DataSpace
           # lookup in +@idx2+
           unless idx2_value = @idx2[id_dbs + DB_SEP + value_dbs]
             puts "FALSE no @idx2[#{id_dbs + DB_SEP + key_dbs}]" if verb
+            # XXX check mappings
             return false
           end
           key_dbs = key_dbs | idx2_value.split(DB_SEP) if key_var
@@ -872,6 +1120,7 @@ class DataSpace
           }
           unless matched
             puts "FALSE #{value_dbs} not in @store[#{store_key_regex}]" if verb
+            # XXX check mappings
             return false
           end
 
@@ -892,6 +1141,7 @@ class DataSpace
           }
           unless found_value
             puts "FALSE no possible key value" if verb
+            # XXX check mappings
             return false
           end
         else
@@ -899,6 +1149,7 @@ class DataSpace
           next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
           unless entity_complies?(value_dbs, child.children, vars, verb)
             puts "FALSE #{value_dbs} doesn't comply" if verb
+            # XXX check mappings
             return false
           end
         end
@@ -909,6 +1160,7 @@ class DataSpace
         # lookup in +@store+
         unless store_value = @store[id_dbs + DB_SEP + key_dbs]
           puts "FALSE no @store[#{id_dbs + DB_SEP + key_dbs}]" if verb
+          # XXX check mappings
           return false
         end
         
@@ -926,6 +1178,7 @@ class DataSpace
         }  
         unless found_value
           puts "FALSE no possible value value" if verb
+          # XXX check mappings
           return false
         end
         
@@ -935,6 +1188,9 @@ class DataSpace
         # lookup in +@store+
         store_key = id_dbs + DB_SEP + key_dbs
         unless db_value_contains? @store, store_key, value_dbs
+          if use_maps
+            # XXX
+          end
           puts "FALSE #{value_dbs} not in @store[#{store_key}]" if verb
           return false
         end
@@ -978,7 +1234,7 @@ class DataSpace
       if id_idx_value = @id_idx[value_dbs]
         id_idx_value.split(DB_SEP).each { |key_dbs|
           # lookup in +@store+
-          child_key = dbs_to_s(key_dbs);
+          child_key = dbs_to_s(key_dbs)
           @store[value_dbs + DB_SEP + key_dbs].split(DB_SEP).each { |v|
             childs << build_entity(child_key, dbs_to_s(v), v)
           }
@@ -997,5 +1253,24 @@ class DataSpace
     end
     
     key ? Entity.new(key, value, childs) : RootEntity.new(value, childs)
+  end
+end
+
+class Hash
+  
+  # Checks if this hash contains another hash. If the intersection of this and
+  # the other hash equals the other hash.
+  #
+  # === Parameters
+  # * _hash_:: the other hash
+  #
+  def contains?(hash)
+    contains = true
+    hash.each { |k, v|
+      next if self.key?(k) && self[k] == v
+      contains = false
+      break
+    }
+    contains
   end
 end
