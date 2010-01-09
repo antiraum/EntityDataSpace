@@ -387,33 +387,34 @@ class DataSpace
     }
   end
 
-  # Adds a new mapping for one or a set of existing attributes of an entity to
-  # another existing attribute or set of attributes of the same entity. Use
-  # this to express attribute synonymity.
+  # Adds a new mapping from one or a set of existing attributes of an entity
+  # to another existing attribute or set of attributes of the same entity. The
+  # mapping is threaded as symetric. Use this to express attribute synonymity.
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attribs_:: hash with the original attribute name/value pairs
-  # * _maps_:: hash with the synonym attribute name/value pairs
+  # * _attribs1_:: hash with the first attribute name/value pairs
+  # * _attribs2_:: hash with the second attribute name/value pairs
   #
   # === Throws
-  # * _ArgumentError_:: if _attrib_ or _map_ is no hash
-  # * _NoAttributeError_:: if a (original or synonym) attribute doesn't exist
+  # * _ArgumentError_:: if _attribs1_ or _attribs2_ is no hash, or if one hash
+  #                  :: is included in the other
+  # * _NoAttributeError_:: if an attribute doesn't exist
   # * _MappingExistsError_:: if the mapping already exists
   #
-  def insert_attribute_mapping(id, attribs, maps)
+  def insert_attribute_mapping(id, attribs1, attribs2)
 
-    unless attribs.instance_of?(Hash) && maps.instance_of?(Hash)
-      raise ArgumentError, "attribs and maps must be hashes"
+    unless attribs1.instance_of?(Hash) && attribs2.instance_of?(Hash)
+      raise ArgumentError, "attribs1 and attribs2 must be hashes"
     end
 
-    if maps.contains? attribs
-      raise ArgumentError, "original attributes are included in synonym attributes, this mapping makes no sense"
+    if attribs1.contains?(attribs2) || attribs2.contains?(attribs1)
+      raise ArgumentError, "one set of attributes is included in the other set, this mapping makes no sense"
     end
 
     id_dbs = s_to_dbs(id)
 
-    [attribs, maps].each { |hash|
+    [attribs1, attribs2].each { |hash|
       hash.each { |k, v|
         unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(k),
                                   s_to_dbs(v)
@@ -421,14 +422,17 @@ class DataSpace
         end
       }
     }
+    
+    attribs1_dbs, attribs2_dbs = hash_to_dbs(attribs1), hash_to_dbs(attribs2)
 
-    maps_key = id_dbs + DB_SEP + hash_to_dbs(attribs)
-    maps_dbs = hash_to_dbs maps
-    if db_value_contains? @maps, maps_key, maps_dbs
-      raise MappingExistsError.new id, attribs, maps
+    maps_key1 = id_dbs + DB_SEP + attribs1_dbs
+    maps_key2 = id_dbs + DB_SEP + attribs2_dbs
+    if db_value_contains?(@maps, maps_key1, attribs2_dbs) ||
+       db_value_contains?(@maps, maps_key2, attribs1_dbs)
+      raise MappingExistsError.new id, attribs1, attribs2
     end
-
-    db_add_to_value @maps, maps_key, maps_dbs
+    db_add_to_value @maps, maps_key1, attribs2_dbs
+    db_add_to_value @maps, maps_key2, attribs1_dbs
   end
 
   # Deletes an existing mapping for one or a set of attributes of an entity.
@@ -944,6 +948,8 @@ class DataSpace
       pp vars
       puts "-" * 60
     end
+    
+    if 
 
     conditions.each { |child|
         
@@ -980,7 +986,6 @@ class DataSpace
           # lookup in +@id_idx+
           unless id_idx_value = @id_idx[id_dbs]
             puts "FALSE no @id_idx[#{id_dbs}]" if verb
-            # XXX check mappings
             return false
           end
           id_idx_value.split(DB_SEP).each { |k_dbs|
@@ -1009,7 +1014,6 @@ class DataSpace
           }  
           unless matched
             puts "FALSE #{id_dbs} not in @store[#{store_key_regex}]" if verb
-            # XXX check mappings
             return false
           end
         
@@ -1152,7 +1156,7 @@ class DataSpace
         store_key = id_dbs + DB_SEP + key_dbs
         unless db_value_contains? @store, store_key, value_dbs
           if use_maps
-            # XXX
+            # @maps[id_dbs + DB_SEP + ] # XXX
           end
           puts "FALSE #{value_dbs} not in @store[#{store_key}]" if verb
           return false
@@ -1230,7 +1234,7 @@ class Hash
   def contains?(hash)
     contains = true
     hash.each { |k, v|
-      next if self.key?(k) && self[k] == v
+      next if key?(k) && [k] == v
       contains = false
       break
     }
