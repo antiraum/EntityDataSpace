@@ -432,63 +432,94 @@ class DataSpaceTest < Test::Unit::TestCase
     run_test_block {
       @ds.insert_entity TestVars::ID1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR2
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
     
       # test ok
       @ds.insert_attribute_mapping(
-        TestVars::ID1, TestVars::KEY1, TestVars::STR1,
-        { TestVars::KEY2 => TestVars::STR2 }
+        TestVars::ID1,
+        { TestVars::KEY1 => TestVars::STR1 },
+        { TestVars::KEY1 => TestVars::STR2 }
       )
       @ds.insert_attribute_mapping(
-        TestVars::ID1, TestVars::KEY1, TestVars::STR1,
-        { TestVars::KEY2 => TestVars::STR2,
-          TestVars::KEY3 => TestVars::STR2 }
+        TestVars::ID1,
+        { TestVars::KEY1 => TestVars::STR1,
+          TestVars::KEY1 => TestVars::STR2 },
+        { TestVars::KEY2 => TestVars::STR1,
+          TestVars::KEY2 => TestVars::STR2 }
       )
     
       # test argument error
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID1, TestVars::KEY1, TestVars::STR1, nil
+          TestVars::ID1,
+          { TestVars::KEY1 => TestVars::STR1 },
+          nil
         )
       }
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID1, TestVars::KEY1, TestVars::STR1,
-          [TestVars::KEY2, TestVars::STR2]
+          TestVars::ID1,
+          nil,
+          { TestVars::KEY1 => TestVars::STR1 }
+        )
+      }
+      assert_raise(ArgumentError) {
+        @ds.insert_attribute_mapping(
+          TestVars::ID1,
+          { TestVars::KEY1 => TestVars::STR1 },
+          [ TestVars::KEY1, TestVars::STR2 ]
+        )
+      }
+      assert_raise(ArgumentError) {
+        @ds.insert_attribute_mapping(
+          TestVars::ID1,
+          [ TestVars::KEY1, TestVars::STR2 ],
+          { TestVars::KEY1 => TestVars::STR1 }
         )
       }
     
       # test no attribute error
       assert_raise(DataSpace::NoAttributeError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID2, TestVars::KEY1, TestVars::STR1,
-          { TestVars::KEY2 => TestVars::STR2 }
+          TestVars::ID2,
+          { TestVars::KEY1 => TestVars::STR1 },
+          { TestVars::KEY1 => TestVars::STR2 }
         )
       }
       assert_raise(DataSpace::NoAttributeError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID1, TestVars::KEY2, TestVars::STR1,
-          { TestVars::KEY2 => TestVars::STR2 }
+          TestVars::ID1,
+          { TestVars::KEY3 => TestVars::STR1 },
+          { TestVars::KEY1 => TestVars::STR2 }
         )
       }
       assert_raise(DataSpace::NoAttributeError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID1, TestVars::KEY1, TestVars::STR2,
-          { TestVars::KEY2 => TestVars::STR2 }
+          TestVars::ID1,
+          { TestVars::KEY1 => TestVars::STR1,
+            TestVars::KEY1 => TestVars::STR2 },
+          { TestVars::KEY2 => TestVars::STR1,
+            TestVars::KEY2 => TestVars::ID1 }
         )
       }
     
       # test mapping exists error
       assert_raise(DataSpace::MappingExistsError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID1, TestVars::KEY1, TestVars::STR1,
-          { TestVars::KEY2 => TestVars::STR2 }
+          TestVars::ID1,
+          { TestVars::KEY1 => TestVars::STR1 },
+          { TestVars::KEY1 => TestVars::STR2 }
         )
       }
       assert_raise(DataSpace::MappingExistsError) {
         @ds.insert_attribute_mapping(
-          TestVars::ID1, TestVars::KEY1, TestVars::STR1,
-          { TestVars::KEY2 => TestVars::STR2,
-            TestVars::KEY3 => TestVars::STR2 }
+          TestVars::ID1,
+          { TestVars::KEY1 => TestVars::STR1,
+            TestVars::KEY1 => TestVars::STR2 },
+          { TestVars::KEY2 => TestVars::STR1,
+            TestVars::KEY2 => TestVars::STR2 }
         )
       }
     
