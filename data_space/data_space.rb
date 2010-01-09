@@ -435,42 +435,28 @@ class DataSpace
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attrib_:: hash with the original attribute name/value pairs
-  # * _map_:: hash with the synonym attribute name/value pairs (or * to remove
-  #        :: all mappings for _attrib_)
+  # * _attribs_:: hash with the original attribute name/value pairs
+  # * _maps_:: hash with the synonym attribute name/value pairs (or * to
+  #         :: remove all mappings for _attribs_)
   #
   # === Throws
-  # * _ArgumentError_:: if _attrib_ is no hash or _map_ is neither hash nor *
-  # * _NoAttributeError_:: if a (original or synonym) attribute doesn't exist
+  # * _ArgumentError_:: if _attribs_ is no hash or _maps_ is neither hash nor
+  #                  :: *
   # * _NoMappingError_:: if the mapping does not exist
   #
-  def delete_attribute_mapping(id, attrib, map)
+  def delete_attribute_mapping(id, attribs, maps)
 
-    unless map.instance_of?(Hash) || map == Entity::ANY_VALUE
-      raise ArgumentError, "map must be a Hash"
+    unless attribs.instance_of?(Hash) &&
+           (maps.instance_of?(Hash) || maps == Entity::ANY_VALUE)
+      raise ArgumentError, "attribs must be a hash and maps must be hash or *"
     end
 
-    id_dbs, key_dbs, value_dbs = s_to_dbs(id), s_to_dbs(key), s_to_dbs(value)
-
-    unless db_value_contains? @store, id_dbs + DB_SEP + key_dbs, value_dbs
-      raise NoAttributeError.new id, key, value
-    end
-
-    maps_key = id_dbs + DB_SEP + key_dbs + DB_SEP + value_dbs
-
+    maps_key = s_to_dbs(id) + DB_SEP + hash_to_dbs(attribs);
+    
     if map.instance_of? Hash
-      map_str = Marshal.dump(map)
-
-      maps = get_attribute_mappings(id_dbs, key_dbs, value_dbs)
-      unless maps.include? map_str
-        raise NoMappingError.new id, key, value, map
+      unless db_remove_from_value(@maps, maps_key, hash_to_dbs(maps))
+        raise NoMappingError.new id, attribs, maps
       end
-
-      # cannot delete single pair, delete all and re-insert others
-      db_del @maps, maps_key
-
-      maps.delete map_str
-      maps.each { |m| @maps[maps_key] = m }
     else
       db_del @maps, maps_key
     end
@@ -600,12 +586,12 @@ class DataSpace
 
   class MappingExistsError < StandardError
 
-    def initialize(id, attrib, map)
-      @id, @attrib, @map = id, attrib, map
-      super "Attributes '#{@attrib}' are already mapped to '#{@map}' for entity '#{@id}'."
+    def initialize(id, attribs, maps)
+      @id, @attribs, @maps = id, attribs, maps
+      super "'#{@attribs}' are already mapped to '#{@maps}' for entity '#{@id}'."
     end
 
-    attr_reader :id, :attrib, :map
+    attr_reader :id, :attribs, :maps
   end
   
   class NoEntityError < StandardError
@@ -630,12 +616,12 @@ class DataSpace
 
   class NoMappingError < StandardError
 
-    def initialize(id, attrib, map)
-      @id, @attrib, @map = id, attrib, map
-      super "Attributes '#{@attrib}' are not mapped to '#{@map}' for entity '#{@id}'."
+    def initialize(id, attribs, maps)
+      @id, @attribs, @maps = id, attribs, maps
+      super "'#{@attribs}' are not mapped to '#{@maps}' for entity '#{@id}'."
     end
 
-    attr_reader :id, :attrib, :map
+    attr_reader :id, :attribs, :maps
   end
 
   private
@@ -931,29 +917,6 @@ class DataSpace
     db_remove_from_value @k_idx, key_dbs, id_dbs
     db_remove_from_value @v_idx, value_dbs, id_dbs
     db_remove_from_value @id_idx, id_dbs, key_dbs
-  end
-  
-  # Get mappings for an attribute.
-  #
-  # === Parameters
-  # * _id_dbs_:: identifier of the attributes' entity
-  # * _key_dbs_:: name of the attribute
-  # * _value_dbs_:: value of the attribute
-  #
-  # === Returns
-  # * array of mapping serializations
-  #
-  def get_attribute_mappings(id_dbs, key_dbs, value_dbs)
-    maps = []
-    dbc = @maps.cursor(nil, 0)
-    k, v = dbc.get(id_dbs + DB_SEP + key_dbs + DB_SEP + value_dbs,
-                   nil, Bdb::DB_SET)
-    while k
-      maps << v
-      k, v = dbc.get(nil, nil, Bdb::DB_NEXT_DUP)
-    end
-    dbc.close
-    maps
   end
   
   # Checks if an entity fulfills the conditions expressed by +Entity+ objects.
