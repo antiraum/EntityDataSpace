@@ -453,7 +453,7 @@ class DataSpace
 
     maps_key = s_to_dbs(id) + DB_SEP + hash_to_dbs(attribs);
     
-    if map.instance_of? Hash
+    if maps.instance_of? Hash
       unless db_remove_from_value(@maps, maps_key, hash_to_dbs(maps))
         raise NoMappingError.new id, attribs, maps
       end
