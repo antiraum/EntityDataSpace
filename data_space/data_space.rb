@@ -159,6 +159,7 @@ class DataSpace
         idx2_value.split(DB_SEP).each { |key_dbs|
           db_remove_from_value @store, v_idx_id_dbs + DB_SEP + key_dbs, id_dbs
           remove_attribute_from_indexes v_idx_id_dbs, key_dbs, id_dbs
+          remove_attribute_from_mappings v_idx_id_dbs, dbs_to_s(key_dbs), id
         }
       }
     elsif @use_idx
@@ -170,6 +171,7 @@ class DataSpace
         idx1_value.split(DB_SEP).each { |idx1_id_dbs|
           db_remove_from_value @store, idx1_id_dbs + DB_SEP + key_dbs, id_dbs
           remove_attribute_from_indexes idx1_id_dbs, key_dbs, id_dbs
+          remove_attribute_from_mappings idx1_id_dbs, dbs_to_s(key_dbs), id
         }
       }
     else
@@ -178,6 +180,7 @@ class DataSpace
         next unless store_key =~ @@DB_SEP_REGEX
         if db_remove_from_value @store, store_key, id_dbs
           remove_attribute_from_indexes $`, $', id_dbs
+          remove_attribute_from_mappings $`, dbs_to_s($'), id
         end
       }
     end
@@ -280,6 +283,7 @@ class DataSpace
         idx2_value.split(DB_SEP).each { |k_dbs|
           db_remove_from_value @store, id_dbs + DB_SEP + k_dbs, value_dbs
           remove_attribute_from_indexes id_dbs, k_dbs, value_dbs
+          remove_attribute_from_mappings id_dbs, dbs_to_s(k_dbs), value
         }
       else
         # loop over +@store+
@@ -293,6 +297,7 @@ class DataSpace
           had_attrib = true
           db_remove_from_value @store, store_key, value_dbs
           remove_attribute_from_indexes id_dbs, k_dbs, value_dbs
+          remove_attribute_from_mappings id_dbs, dbs_to_s(k_dbs), value
         }
         raise NoAttributeError.new id, key, value unless had_attrib
       end
@@ -306,6 +311,7 @@ class DataSpace
       end
       store_value.split(DB_SEP).each { |v_dbs|
         remove_attribute_from_indexes id_dbs, key_dbs, v_dbs
+        remove_attribute_from_mappings id_dbs, key, dbs_to_s(v_dbs)
       }
       db_del @store, store_key
       
@@ -316,82 +322,9 @@ class DataSpace
         raise NoAttributeError.new id, key, value
       end
       remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
+      remove_attribute_from_mappings id_dbs, key, value
       
-    end  
-      
-    return if key == Entity::ANY_VALUE && value == Entity::ANY_VALUE
-      
-    # remove from mappings
-    maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
-    
-    # loop over +@maps+
-    db_each(@maps) { |maps_key, maps_value|
-      next unless maps_key =~ maps_key_regex
-
-      attribs = dbs_to_hash $'
-      changed_attribs = false
-      
-      if key == Entity::ANY_VALUE
-        
-        contains_attrib = false
-        attribs.each { |k, v|
-          next unless value == v
-          contains_attrib = true
-          attribs.delete k
-        }
-        
-        if contains_attrib
-          db_del @maps, maps_key
-          next if attribs.empty?
-          @maps[id_dbs + DB_SEP + hash_to_dbs(attribs)] = maps_value
-          changed_attribs = true
-        end
-        
-      elsif attribs.key?(key) &&
-            (value == Entity::ANY_VALUE || attribs[key] == value)
-      
-        db_del @maps, maps_key
-        next if attribs.length == 1
-    
-        attribs.delete key
-        @maps[id_dbs + DB_SEP + hash_to_dbs(attribs)] = maps_value
-        changed_attribs = true
-      end
-      
-      maps_value.split(DB_SEP).each { |maps_dbs|
-        
-        maps = dbs_to_hash maps_dbs
-        if key == Entity::ANY_VALUE
-          
-          contains_attrib = false
-          maps.each { |k, v|
-            next unless value == v
-            contains_attrib = true
-            maps.delete k
-          }
-
-          if contains_attrib
-            db_remove_from_value @maps, maps_key, maps_dbs
-            next if maps.empty?
-            db_add_to_value @maps, maps_key, hash_to_dbs(maps)
-          end
-          
-        elsif maps.key?(key) && 
-              (value == Entity::ANY_VALUE || maps[key] == value)
-      
-          db_remove_from_value @maps, maps_key, maps_dbs
-          next if maps.length == 1
-    
-          maps.delete key
-          db_add_to_value @maps, maps_key, hash_to_dbs(maps)
-        end
-        
-        next unless changed_attribs && maps.contains?(attribs)
-        # original attributes are included in synonym attributes, this
-        # mapping makes no sense anymore
-        db_remove_from_value @maps, maps_key, maps_dbs
-      }
-    }
+    end
   end
 
   # Adds a new mapping between one or a set of existing attributes of an
@@ -899,6 +832,8 @@ class DataSpace
         store_key = id_dbs + DB_SEP + key_dbs
         @store[store_key].split(DB_SEP).each { |value_dbs|
           remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
+          remove_attribute_from_mappings id_dbs, dbs_to_s(key_dbs),
+                                         dbs_to_s(value_dbs)
         }
         db_del @store, store_key
       }
@@ -913,6 +848,8 @@ class DataSpace
         db_del @store, store_key
         store_value.split(DB_SEP).each { |value_dbs|
           remove_attribute_from_indexes id_dbs, key_dbs, value_dbs
+          remove_attribute_from_mappings id_dbs, dbs_to_s(key_dbs),
+                                         dbs_to_s(value_dbs)
         }
       }
       return false unless had_attrib
@@ -968,6 +905,37 @@ class DataSpace
     db_remove_from_value @id_idx, id_dbs, key_dbs
   end
   
+  # Removes an attribute from the mappings.
+  #
+  # === Parameters
+  # * _id_dbs_:: entity identifier
+  # * _key_:: attribute name
+  # * _value_:: attribute value
+  #
+  def remove_attribute_from_mappings(id_dbs, key, value)
+    
+    maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
+    # loop over +@maps+
+    db_each(@maps) { |maps_key, maps_value|
+      next unless maps_key =~ maps_key_regex
+      attribs1_dbs = $'
+      attribs1 = dbs_to_hash attribs1_dbs
+      next unless attribs1.key?(key) && attribs1[key] == value
+      db_del @maps, maps_key
+      maps_value.split(DB_SEP).each { |attribs2_dbs|
+        db_remove_from_value @maps, id_dbs + DB_SEP + attribs2_dbs,
+                                    attribs1_dbs
+      }
+      next if attribs1.length == 1 # attrib to delete is the only attrib
+      attribs1.delete key
+      @maps[id_dbs + DB_SEP + hash_to_dbs(attribs1)] = maps_value
+      maps_value.split(DB_SEP).each { |attribs2_dbs|
+        db_add_to_value @maps, id_dbs + DB_SEP + attribs2_dbs,
+                               hash_to_dbs(attribs1)
+      }
+    }
+  end
+  
   # Checks if an entity fulfills the conditions expressed by +Entity+ objects.
   # Runs recursively through the +Entity+ object trees.
   #
@@ -994,7 +962,7 @@ class DataSpace
       puts "-" * 60
     end
     
-    if 
+    # if 
 
     conditions.each { |child|
         
