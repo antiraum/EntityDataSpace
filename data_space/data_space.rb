@@ -416,7 +416,7 @@ class DataSpace
       attribs1_dbs, attribs2_dbs = hash_to_dbs(attribs1),
                                    hash_to_dbs(attribs2)
       unless db_remove_from_value(@maps, id_dbs + DB_SEP + attribs1_dbs,
-                                  attribs2_dbs) ||
+                                  attribs2_dbs) &&
              db_remove_from_value(@maps, id_dbs + DB_SEP + attribs2_dbs,
                                   attribs1_dbs)
         raise NoMappingError.new id, attribs1, attribs2
@@ -425,21 +425,31 @@ class DataSpace
     elsif attribs1.instance_of?(Hash) || attribs2.instance_of?(Hash)
       
       attribs1 = attribs2 if attribs2.instance_of? Hash
+      attribs1_dbs = hash_to_dbs(attribs1)
       maps_key = id_dbs + DB_SEP + attribs1_dbs
-      @maps[maps_key].split(DB_SEP).each { |attribs_dbs|
-        db_remove_from_value @maps, attribs_dbs, attribs1_dbs
+      unless @maps[maps_key]
+        raise NoMappingError.new id, attribs1, "*"
+      end
+      @maps[maps_key].split(DB_SEP).each { |attribs2_dbs|
+        db_remove_from_value @maps, id_dbs + DB_SEP + attribs2_dbs,
+                             attribs1_dbs
       }
       db_del @maps, maps_key
       
     else
       
       # remove all mappings for entity
+      removed_mapping = false
       maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
       # loop over +@maps+
       db_each(@maps) { |maps_key, maps_value|
         next unless maps_key =~ maps_key_regex
         db_del @maps, maps_key
+        removed_mapping = true
       }
+      unless removed_mapping
+        raise NoMappingError.new id, attribs1, attribs2
+      end
       
     end
   end
@@ -572,7 +582,7 @@ class DataSpace
 
     def initialize(id, attribs1, attribs2)
       @id, @attribs1, @attribs2 = id, attribs1, attribs2
-      super "'#{@attribs1}' and '#{@attribs2}' are already mapped for entity '#{@id}'."
+      super "'#{@attribs1.to_pretty_s}' and '#{@attribs2.to_pretty_s}' are already mapped for entity '#{@id}'."
     end
 
     attr_reader :id, :attribs1, :attribs2
@@ -602,7 +612,11 @@ class DataSpace
 
     def initialize(id, attribs1, attribs2)
       @id, @attribs1, @attribs2 = id, attribs1, attribs2
-      super "'#{@attribs1}' and '#{@attribs2}' are not mapped for entity '#{@id}'."
+      attribs1_s = @attribs1.instance_of?(Hash) ? @attribs1.to_pretty_s :
+                                                  @attribs1
+      attribs2_s = @attribs2.instance_of?(Hash) ? @attribs2.to_pretty_s :
+                                                  @attribs2
+      super "'#{attribs1_s}' and '#{attribs2_s}' are not mapped for entity '#{@id}'."
     end
 
     attr_reader :id, :attribs1, :attribs2
@@ -1306,10 +1320,20 @@ class Hash
   def contains?(hash)
     contains = true
     hash.each { |k, v|
-      next if key?(k) && [k] == v
+      next if key?(k) && self[k] == v
       contains = false
       break
     }
     contains
+  end
+  
+  # Converts to a human readable string.
+  #
+  def to_pretty_s
+    s = ""
+    each { |k, v|
+      s += "#{k} => #{v}, "
+    }
+    s.chomp(", ")
   end
 end
