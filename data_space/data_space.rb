@@ -479,7 +479,9 @@ class DataSpace
     results.delete_if { |id_dbs|
       # TODO enable variables among results
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
-      if entity_complies?(id_dbs, query.children, vars, use_maps, verb)
+      if (use_maps && entity_complies_with_mappings?(id_dbs, query.children,
+                                                     vars, verb)) ||
+          entity_complies?(id_dbs, query.children, vars, verb)
         puts "TRUE #{id_dbs} complies" if verb
         next
       end
@@ -936,24 +938,71 @@ class DataSpace
     }
   end
   
-  # Checks if an entity fulfills the conditions expressed by +Entity+ objects.
-  # Runs recursively through the +Entity+ object trees.
+  # Checks if an entity fulfills the conditions expressed by +Entity+ objects
+  # by also considering the stored attribute mappings. Generates all possible
+  # partitions of the conditions and uses the stored mappings for the subsets
+  # as alternatives.
   #
   # === Parameters
   # * _id_dbs_:: entity identifier
-  # * _conditions_:: array of +Entity+ object (trees)
+  # * _conditions_:: array of +Entity+ objects (trees)
   # * _vars_:: hash of query variables with their values
-  # * _use_maps_:: use mappings
   # * _verb_:: print debug output
   #
   # === Returns
   # * +true+ if conditions fulfilled, +false+ if not
   #
-  def entity_complies?(id_dbs, conditions, vars = {},
-                       use_maps = false, verb = false)
+  def entity_complies_with_mappings?(id_dbs, conditions, vars = {},
+                                     verb = false)
+                                     
+    # has to comply for one partition
+    partition_complies = false
+    get_partitions(conditions) { |partition|
+      # has to comply for all attribs
+      attribs_complies = true
+      partition.each { |attribs1|
+        alt_childs = [attribs1]
+        mappings = @maps[id_dbs + DB_SEP + hash_to_dbs(attribs1)]
+        unless mappings.nil?
+          mappings.split(DB_SEP).each { |attribs2_dbs|
+            alt_childs << dbs_to_hash(attribs2_dbs)
+          }
+        end
+        # has to comply for one alternative
+        alt_complies = false
+        alt_childs.each { |childs|
+          if entity_complies?(id_dbs, childs, vars, verb)
+            alt_complies = true
+            break
+          end
+        }
+        next if alt_complies
+        attribs_complies = false
+        break
+      }
+      next unless attribs_complies
+      partition_complies = true
+      break
+    }
+    return partition_complies
+  end
+  
+  # Checks if an entity fulfills the conditions expressed by +Entity+ objects.
+  # Runs recursively through the +Entity+ object trees.
+  #
+  # === Parameters
+  # * _id_dbs_:: entity identifier
+  # * _conditions_:: array of +Entity+ objects (trees)
+  # * _vars_:: hash of query variables with their values
+  # * _verb_:: print debug output
+  #
+  # === Returns
+  # * +true+ if conditions fulfilled, +false+ if not
+  #
+  def entity_complies?(id_dbs, conditions, vars = {}, verb = false)
 
     return true if conditions.empty?   
-     
+
     if verb
       puts "-" * 60
       puts id_dbs
@@ -961,8 +1010,6 @@ class DataSpace
       pp vars
       puts "-" * 60
     end
-    
-    # if 
 
     conditions.each { |child|
         
@@ -1066,7 +1113,6 @@ class DataSpace
         end
         unless found_value
           puts "FALSE no possible key and/or value value" if verb
-          # XXX check mappings
           return false
         end
         
@@ -1080,7 +1126,6 @@ class DataSpace
           # lookup in +@idx2+
           unless idx2_value = @idx2[id_dbs + DB_SEP + value_dbs]
             puts "FALSE no @idx2[#{id_dbs + DB_SEP + key_dbs}]" if verb
-            # XXX check mappings
             return false
           end
           key_dbs = key_dbs | idx2_value.split(DB_SEP) if key_var
@@ -1100,7 +1145,6 @@ class DataSpace
           }
           unless matched
             puts "FALSE #{value_dbs} not in @store[#{store_key_regex}]" if verb
-            # XXX check mappings
             return false
           end
 
@@ -1121,7 +1165,6 @@ class DataSpace
           }
           unless found_value
             puts "FALSE no possible key value" if verb
-            # XXX check mappings
             return false
           end
         else
@@ -1129,7 +1172,6 @@ class DataSpace
           next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
           unless entity_complies?(value_dbs, child.children, vars, verb)
             puts "FALSE #{value_dbs} doesn't comply" if verb
-            # XXX check mappings
             return false
           end
         end
@@ -1140,7 +1182,6 @@ class DataSpace
         # lookup in +@store+
         unless store_value = @store[id_dbs + DB_SEP + key_dbs]
           puts "FALSE no @store[#{id_dbs + DB_SEP + key_dbs}]" if verb
-          # XXX check mappings
           return false
         end
         
@@ -1158,7 +1199,6 @@ class DataSpace
         }  
         unless found_value
           puts "FALSE no possible value value" if verb
-          # XXX check mappings
           return false
         end
         
@@ -1168,9 +1208,6 @@ class DataSpace
         # lookup in +@store+
         store_key = id_dbs + DB_SEP + key_dbs
         unless db_value_contains? @store, store_key, value_dbs
-          if use_maps
-            # @maps[id_dbs + DB_SEP + ] # XXX
-          end
           puts "FALSE #{value_dbs} not in @store[#{store_key}]" if verb
           return false
         end
@@ -1233,6 +1270,28 @@ class DataSpace
     end
     
     key ? Entity.new(key, value, childs) : RootEntity.new(value, childs)
+  end
+  
+  # Recursively generates all possible partitionings of subsets for the
+  # elements in an array.
+  #
+  # === Parameters
+  # * _array_
+  #
+  def get_partitions(array)
+    yield [] if array.empty?
+    (0 ... 2 ** array.size / 2).each { |i|
+      parts = [[], []]
+      array.each { |item|
+        parts[i & 1] << item
+        i >>= 1
+      }
+      partitions(parts[1]) { |b|
+        result = [parts[0]] + b
+        result = result.reject { |e| e.empty? }
+        yield result
+      }
+    }
   end
 end
 
