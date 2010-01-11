@@ -459,13 +459,13 @@ class DataSpace
   #
   # === Parameters
   # * _query_:: +RootEntity+ object
-  # * _use_maps_:: use mappings
-  # * _verb_:: print debug output
+  # * _options_:: options hash (available keys: _:use_mappings_ and _:verbose_
+  #            :: (print debug output)
   #
   # === Returns
   # * Array of entity ids.
   #
-  def search(query, use_maps = false, verb = false)
+  def search(query, options = {})
     
     unless query.instance_of?(RootEntity) || query.instance_of?(Entity)
       raise ArgumentError, "query must be an instance of RootEntity or Entity"
@@ -489,13 +489,14 @@ class DataSpace
     results.delete_if { |id_dbs|
       # TODO enable variables among results
       vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
-      if (use_maps && entity_complies_with_mappings?(id_dbs, query.children,
-                                                     vars, verb)) ||
-          entity_complies?(id_dbs, query.children, vars, verb)
-        puts "TRUE #{id_dbs} complies" if verb
+      if (options[:use_mappings] &&
+          entity_complies_with_mappings?(id_dbs, query.children,
+                                         vars, options[:verbose])) ||
+          entity_complies?(id_dbs, query.children, vars, options[:verbose])
+        puts "TRUE #{id_dbs} complies" if options[:verbose]
         next
       end
-      if verb
+      if options[:verbose]
         puts "FALSE #{id_dbs} doesn't comply"
         puts "=" * 60
       end
@@ -1300,7 +1301,7 @@ class DataSpace
         parts[i & 1] << item
         i >>= 1
       }
-      partitions(parts[1]) { |b|
+      get_partitions(parts[1]) { |b|
         result = [parts[0]] + b
         result = result.reject { |e| e.empty? }
         yield result
