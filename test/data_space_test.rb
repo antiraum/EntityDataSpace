@@ -337,7 +337,7 @@ class DataSpaceTest < Test::Unit::TestCase
         )
       }
     
-      # test no entity/attribute error
+      # test no entity error
       assert_raise(DataSpace::NoEntityError) {
         @ds.insert_attribute_mapping(
           TestVars::ID2,
@@ -345,6 +345,8 @@ class DataSpaceTest < Test::Unit::TestCase
           { TestVars::KEY1 => TestVars::STR2 }
         )
       }
+
+      # test no attribute error
       assert_raise(DataSpace::NoAttributeError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
@@ -379,8 +381,6 @@ class DataSpaceTest < Test::Unit::TestCase
             TestVars::KEY3 => TestVars::STR1 }
         )
       }
-    
-      # TODO check with search
     }
   end
   
@@ -397,73 +397,104 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
-      )
-      
+        { TestVars::KEY3 => TestVars::STR2 }
+      )  
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1,
           TestVars::KEY2 => TestVars::STR2 },
-        { TestVars::KEY1 => TestVars::STR2,
-          TestVars::KEY2 => TestVars::STR1 }
+        { TestVars::KEY1 => TestVars::STR1,
+          TestVars::KEY3 => TestVars::STR2 }
       )
-      
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY1, TestVars::STR1),
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
       @ds.delete_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
+        { TestVars::KEY3 => TestVars::STR2 }
       )
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
       @ds.delete_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1,
           TestVars::KEY2 => TestVars::STR2 },
-        { TestVars::KEY1 => TestVars::STR2,
-          TestVars::KEY2 => TestVars::STR1 }
+        { TestVars::KEY1 => TestVars::STR1,
+          TestVars::KEY3 => TestVars::STR2 }
       )
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY1, TestVars::STR1),
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
       
       # test ok with wildcard
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
+        { TestVars::KEY3 => TestVars::STR2 }
       )
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
         { TestVars::KEY1 => TestVars::STR2,
-          TestVars::KEY2 => TestVars::STR1 }
+          TestVars::KEY3 => TestVars::STR1 }
+      )
+      @ds.insert_attribute_mapping(
+        TestVars::ID1,
+        { TestVars::KEY1 => TestVars::STR2 },
+        { TestVars::KEY3 => TestVars::STR1 }
       )
       @ds.delete_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
         "*"
       )
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       TestVars::KEY1 => TestVars::STR2,
+                       TestVars::KEY3 => TestVars::STR1
+                     ]), :use_mappings => true)
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
+                     ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
-      )
-      @ds.insert_attribute_mapping(
-        TestVars::ID1,
-        { TestVars::KEY2 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
-      )
-      @ds.delete_attribute_mapping(
-        TestVars::ID1,
-        "*",
-        { TestVars::KEY1 => TestVars::STR2 }
-      )
-      @ds.insert_attribute_mapping(
-        TestVars::ID1,
-        { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY2 => TestVars::STR2 }
-      )
-      @ds.insert_attribute_mapping(
-        TestVars::ID1,
-        { TestVars::KEY2 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
+        { TestVars::KEY3 => TestVars::STR2 }
       )
       @ds.delete_attribute_mapping(TestVars::ID1, "*", "*")
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
+                     ]), :use_mappings => true)
     
       # test argument error
       assert_raise(ArgumentError) {
@@ -494,13 +525,22 @@ class DataSpaceTest < Test::Unit::TestCase
           { TestVars::KEY1 => TestVars::STR1 }
         )
       }
+      
+      # test no entity error
+      assert_raise(DataSpace::NoEntityError) {
+        @ds.delete_attribute_mapping(
+          TestVars::ID2,
+          { TestVars::KEY1 => TestVars::STR1 },
+          { TestVars::KEY3 => TestVars::STR2 }
+        )
+      }
     
       # test no mapping error
       assert_raise(DataSpace::NoMappingError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR1 },
-          { TestVars::KEY1 => TestVars::STR2 }
+          { TestVars::KEY3 => TestVars::STR2 }
         )
       }
       assert_raise(DataSpace::NoMappingError) {
@@ -508,8 +548,8 @@ class DataSpaceTest < Test::Unit::TestCase
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR1,
             TestVars::KEY2 => TestVars::STR2 },
-          { TestVars::KEY1 => TestVars::STR2,
-            TestVars::KEY2 => TestVars::STR1 }
+          { TestVars::KEY1 => TestVars::STR1,
+            TestVars::KEY3 => TestVars::STR2 }
         )
       }
       assert_raise(DataSpace::NoMappingError) {
@@ -520,17 +560,8 @@ class DataSpaceTest < Test::Unit::TestCase
         )
       }
       assert_raise(DataSpace::NoMappingError) {
-        @ds.delete_attribute_mapping(
-          TestVars::ID1,
-          "*",
-          { TestVars::KEY1 => TestVars::STR2 }
-        )
-      }
-      assert_raise(DataSpace::NoMappingError) {
         @ds.delete_attribute_mapping(TestVars::ID1, "*", "*")
       }
-    
-      # TODO check with search
     }
   end
   
