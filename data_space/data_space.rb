@@ -419,10 +419,13 @@ class DataSpace
       # loop over +@maps+
       db_each(@maps) { |maps_key, maps_value|
         next unless maps_key =~ maps_key_regex
-        next if attrib.instance_of?(Hash) &&
-                ! db_value_contains?(@maps, maps_key, attrib_dbs)
-        db_del @maps, maps_key
-        removed_mapping = true
+        if attrib.instance_of?(Hash)
+          removed_mapping = true if db_remove_from_value(@maps, maps_key,
+                                                         attrib_dbs)
+        else
+          db_del @maps, maps_key
+          removed_mapping = true
+        end
       }
       unless removed_mapping
         raise NoMappingError.new id, attrib, mapping
@@ -772,6 +775,10 @@ class DataSpace
   #
   def s_to_dbs(s)
     
+    unless s.instance_of?(String)
+      raise ArgumentError, "s must be a string"
+    end
+    
     if s =~ @@DB_INVALID_REGEX
       raise ArgumentError,
             "entity identifiers and attribute names cannot contain the " +
@@ -787,17 +794,28 @@ class DataSpace
   # * _dbs_:: string modified by +s_to_dbs+
   #
   def dbs_to_s(dbs)
+    
+    unless dbs.instance_of?(String)
+      raise ArgumentError, "dbs must be a string"
+    end
+    
     dbs.gsub @@DB_INVALID_REGEX, DB_SEP
   end
   
-  # Prepares a hash for usage in the database by serializing and replacing
-  # occurences of +DB_SEP+ in the serialization.
+  # Prepares a hash for usage in the database by transforming into a sorted
+  # array, serializing and replacing occurences of +DB_SEP+ in the
+  # serialization.
   #
   # === Parameters
   # * _hash_:: hash
   #
   def hash_to_dbs(hash)
-    s_to_dbs Marshal.dump(hash)
+    
+    unless hash.instance_of?(Hash)
+      raise ArgumentError, "hash must be a hash"
+    end
+    
+    s_to_dbs Marshal.dump(hash.sort)
   end
   
   # Reverts the modification done by +hash_to_dbs+.
@@ -806,7 +824,14 @@ class DataSpace
   # * _dbs_:: hash modified by +hash_to_dbs+
   #
   def dbs_to_hash(dbs)
-    Marshal.load dbs_to_s(dbs)
+    
+    unless dbs.instance_of?(String)
+      raise ArgumentError, "dbs must be a string"
+    end
+    
+    hash = {}
+    Marshal.load(dbs_to_s(dbs)).each { |i| hash[i[0]] = i[1] }
+    hash
   end
 
   # Removes all attributes of an entity.
@@ -940,35 +965,83 @@ class DataSpace
                                      verb = false)
                                      
     # has to comply for one partition
-    partition_complies = false
-    get_partitions(conditions) { |partition|
-      # has to comply for all attribs
-      attribs_complies = true
-      partition.each { |attribs1|
-        alt_childs = [attribs1]
-        mappings = @maps[id_dbs + DB_SEP + hash_to_dbs(attribs1)]
+    partitioning_complies = false
+    get_partitionings(conditions) { |partitioning|
+      if verb
+        s = "PARTITIONING: ["
+        partitioning.each { |p|
+          s += "["
+          p.each { |g| s += g.to_s.chomp + ", " }
+          s.chomp! ", "
+          s += "]"
+        }
+        s += "]"
+        puts s
+      end
+      # has to comply for all partitions
+      partitions_comply = true
+      partitioning.each { |partition|
+        if verb
+          s = "PARTITION: ["
+          partition.each { |e| s += e.to_s.chomp + ", " }
+          s.chomp! ", "
+          s += "]"
+          puts s
+        end
+        partition_hash = {}
+        partition.each { |e|
+          partition_hash[e.key] = e.value
+        }
+        if partition.size != partition_hash.size && verb
+          puts "ERROR translation to partition hash went wrong"
+        end
+        mappings = @maps[id_dbs + DB_SEP + hash_to_dbs(partition_hash)]
+        alt_childs = [partition]
         unless mappings.nil?
-          mappings.split(DB_SEP).each { |attribs2_dbs|
-            alt_childs << dbs_to_hash(attribs2_dbs)
+          puts "NUM MAPPINGS FOUND: #{mappings.split(DB_SEP).size}" if verb
+          mappings.split(DB_SEP).each { |mapping_dbs|
+            childs = []
+            dbs_to_hash(mapping_dbs).each { |k, v|
+              childs << Entity.new(k, v)
+            }
+            alt_childs << childs
           }
+        else
+          puts "NO MAPPINGS FOUND" if verb
         end
         # has to comply for one alternative
         alt_complies = false
         alt_childs.each { |childs|
+          if verb
+            s = "ALTERNATIVE: "
+            childs.each { |e| s += e.to_s.chomp + ", " }
+            s.chomp! ", "
+            puts s
+          end
           if entity_complies?(id_dbs, childs, vars, verb)
+            puts "alternative complies" if verb
             alt_complies = true
             break
           end
+          puts "alternative does not comply" if verb
         }
-        next if alt_complies
-        attribs_complies = false
+        if alt_complies
+          puts "partition complies" if verb
+          next
+        end
+        puts "partition does not comply" if verb
+        partitions_comply = false
         break
-      }
-      next unless attribs_complies
-      partition_complies = true
+      }  
+      unless partitions_comply
+        puts "partitioning does not comply" if verb
+        next
+      end
+      puts "partitioning complies" if verb
+      partitioning_complies = true
       break
     }
-    return partition_complies
+    return partitioning_complies
   end
   
   # Checks if an entity fulfills the conditions expressed by +Entity+ objects.
@@ -1262,7 +1335,7 @@ class DataSpace
   # === Parameters
   # * _array_
   #
-  def get_partitions(array)
+  def get_partitionings(array)
     yield [] if array.empty?
     (0 ... 2 ** array.size / 2).each { |i|
       parts = [[], []]
@@ -1270,7 +1343,7 @@ class DataSpace
         parts[i & 1] << item
         i >>= 1
       }
-      get_partitions(parts[1]) { |b|
+      get_partitionings(parts[1]) { |b|
         result = [parts[0]] + b
         result = result.reject { |e| e.empty? }
         yield result

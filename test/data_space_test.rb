@@ -277,6 +277,7 @@ class DataSpaceTest < Test::Unit::TestCase
         { TestVars::KEY1 => TestVars::STR1,
           TestVars::KEY3 => TestVars::STR2 }
       )
+      
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
                      RootEntity.new(TestVars::ID1, [
@@ -377,8 +378,8 @@ class DataSpaceTest < Test::Unit::TestCase
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR1,
             TestVars::KEY2 => TestVars::STR2 },
-          { TestVars::KEY1 => TestVars::STR2,
-            TestVars::KEY3 => TestVars::STR1 }
+          { TestVars::KEY1 => TestVars::STR1,
+            TestVars::KEY3 => TestVars::STR2 }
         )
       }
     }
@@ -450,7 +451,7 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2,
+        { TestVars::KEY3 => TestVars::STR2,
           TestVars::KEY3 => TestVars::STR1 }
       )
       @ds.insert_attribute_mapping(
@@ -471,8 +472,8 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_equal [],
                    @ds.search(
                      RootEntity.new(TestVars::ID1, [
-                       TestVars::KEY1 => TestVars::STR2,
-                       TestVars::KEY3 => TestVars::STR1
+                       Entity.new(TestVars::KEY3, TestVars::STR2),
+                       Entity.new(TestVars::KEY2, TestVars::STR1)
                      ]), :use_mappings => true)
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
