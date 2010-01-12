@@ -332,20 +332,20 @@ class DataSpace
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attribs_:: hash with the existing attribute name/value pairs
-  # * _mappings_:: hash with the mapping attribute name/value pairs
+  # * _attrib_:: hash with the existing attribute name/value pairs
+  # * _mapping_:: hash with the mapping attribute name/value pairs
   #
   # === Throws
-  # * _ArgumentError_:: if _attribs_ or _mappings_ is no hash, or if one hash
+  # * _ArgumentError_:: if _attrib_ or _mapping_ is no hash, or if one hash
   #                  :: is included in the other
   # * _NoEntityError_:: if the entity does not exist
   # * _NoAttributeError_:: if an attribute does not exist
   # * _MappingExistsError_:: if the mapping already exists
   #
-  def insert_attribute_mapping(id, attribs, mappings)
+  def insert_attribute_mapping(id, attrib, mapping)
 
-    unless attribs.instance_of?(Hash) && mappings.instance_of?(Hash)
-      raise ArgumentError, "attribs and mappings must be hashes"
+    unless attrib.instance_of?(Hash) && mapping.instance_of?(Hash)
+      raise ArgumentError, "attrib and mapping must be hashes"
     end
 
     id_dbs = s_to_dbs(id)
@@ -354,24 +354,24 @@ class DataSpace
       raise NoEntityError.new id
     end
 
-    if attribs.contains?(mappings) || mappings.contains?(attribs)
+    if attrib.contains?(mapping) || mapping.contains?(attrib)
       raise ArgumentError, "one hash is included in the other, this mapping makes no sense"
     end
 
-    attribs.each { |k, v|
+    attrib.each { |k, v|
       unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(k),
                                 s_to_dbs(v)
         raise NoAttributeError.new id, k, v
       end
     }
     
-    attribs_dbs, mappings_dbs = hash_to_dbs(attribs), hash_to_dbs(mappings)
+    attrib_dbs, mapping_dbs = hash_to_dbs(attrib), hash_to_dbs(mapping)
 
-    maps_key = id_dbs + DB_SEP + mappings_dbs
-    if db_value_contains?(@maps, maps_key, attribs_dbs)
-      raise MappingExistsError.new id, attribs, mappings
+    maps_key = id_dbs + DB_SEP + mapping_dbs
+    if db_value_contains?(@maps, maps_key, attrib_dbs)
+      raise MappingExistsError.new id, attrib, mapping
     end
-    db_add_to_value @maps, maps_key, attribs_dbs
+    db_add_to_value @maps, maps_key, attrib_dbs
   end
 
   # Deletes an existing mapping for one or multiple attributes of an entity. 
@@ -379,21 +379,21 @@ class DataSpace
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attribs_:: hash with the existing attribute name/value pairs (or * to
-  #            :: remove all mappings with for _id_)
-  # * _mappings_:: hash with the mapping attribute name/value pairs (or * to
-  #             :: remove all mappings for _attribs_)
+  # * _attrib_:: hash with the existing attribute name/value pairs (or * to
+  #           :: remove all mappings with for _id_)
+  # * _mapping_:: hash with the mapping attribute name/value pairs (or * to
+  #            :: remove all mappings for _attrib_)
   #
   # === Throws
-  # * _ArgumentError_:: if _attribs_ or _mappings_ is neither hash nor *
+  # * _ArgumentError_:: if _attrib_ or _mapping_ is neither hash nor *
   # * _NoEntityError_:: if the entity does not exist
   # * _NoMappingError_:: if the mapping does not exist
   #
-  def delete_attribute_mapping(id, attribs, mappings)
+  def delete_attribute_mapping(id, attrib, mapping)
 
-    unless (attribs.instance_of?(Hash) || attribs == Entity::ANY_VALUE) &&
-           (mappings.instance_of?(Hash) || mappings == Entity::ANY_VALUE)
-      raise ArgumentError, "attribs and mappings must be either hash or *"
+    unless (attrib.instance_of?(Hash) || attrib == Entity::ANY_VALUE) &&
+           (mapping.instance_of?(Hash) || mapping == Entity::ANY_VALUE)
+      raise ArgumentError, "attrib and mapping must be either hash or *"
     end
 
     id_dbs = s_to_dbs(id)
@@ -402,29 +402,29 @@ class DataSpace
       raise NoEntityError.new id
     end
     
-    if attribs.instance_of?(Hash) && mappings.instance_of?(Hash)
+    if attrib.instance_of?(Hash) && mapping.instance_of?(Hash)
       
-      attribs_dbs, mappings_dbs = hash_to_dbs(attribs), hash_to_dbs(mappings)
-      unless db_remove_from_value(@maps, id_dbs + DB_SEP + mappings_dbs,
-                                  attribs_dbs)
-        raise NoMappingError.new id, attribs, mappings
+      attrib_dbs, mapping_dbs = hash_to_dbs(attrib), hash_to_dbs(mapping)
+      unless db_remove_from_value(@maps, id_dbs + DB_SEP + mapping_dbs,
+                                  attrib_dbs)
+        raise NoMappingError.new id, attrib, mapping
       end
       
     else
       
-      attribs_dbs = attribs.instance_of?(Hash) ? hash_to_dbs(attribs) : nil
+      attrib_dbs = attrib.instance_of?(Hash) ? hash_to_dbs(attrib) : nil
       removed_mapping = false
       maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
       # loop over +@maps+
       db_each(@maps) { |maps_key, maps_value|
         next unless maps_key =~ maps_key_regex
-        next if attribs.instance_of?(Hash) &&
-                ! db_value_contains?(@maps, maps_key, attribs_dbs)
+        next if attrib.instance_of?(Hash) &&
+                ! db_value_contains?(@maps, maps_key, attrib_dbs)
         db_del @maps, maps_key
         removed_mapping = true
       }
       unless removed_mapping
-        raise NoMappingError.new id, attribs, mappings
+        raise NoMappingError.new id, attrib, mapping
       end
       
     end
@@ -557,12 +557,12 @@ class DataSpace
 
   class MappingExistsError < StandardError
 
-    def initialize(id, attribs, mappings)
-      @id, @attribs, @mappings = id, attribs, mappings
-      super "'#{@attribs.to_pretty_s}' are already mapped to '#{@mappings.to_pretty_s}' for entity '#{@id}'."
+    def initialize(id, attrib, mapping)
+      @id, @attrib, @mapping = id, attrib, mapping
+      super "'#{@attrib.to_pretty_s}' are already mapped to '#{@mapping.to_pretty_s}' for entity '#{@id}'."
     end
 
-    attr_reader :id, :attribs, :mappings
+    attr_reader :id, :attrib, :mapping
   end
   
   class NoEntityError < StandardError
@@ -587,16 +587,15 @@ class DataSpace
 
   class NoMappingError < StandardError
 
-    def initialize(id, attribs, mappings)
-      @id, @attribs, @mappings = id, attribs, mappings
-      attribs_s = @attribs.instance_of?(Hash) ? @attribs.to_pretty_s :
-                                                @attribs
-      mappings_s = @mappings.instance_of?(Hash) ? @mappings.to_pretty_s :
-                                                  @mappings
-      super "'#{attribs_s}' are not mapped to '#{attribs_s}' for entity '#{@id}'."
+    def initialize(id, attrib, mapping)
+      @id, @attrib, @mapping = id, attrib, mapping
+      attrib_s = @attrib.instance_of?(Hash) ? @attrib.to_pretty_s : @attrib
+      mapping_s = @mapping.instance_of?(Hash) ? @mapping.to_pretty_s :
+                                                @mapping
+      super "'#{attrib_s}' are not mapped to '#{mapping_s}' for entity '#{@id}'."
     end
 
-    attr_reader :id, :attribs, :mappings
+    attr_reader :id, :attrib, :mapping
   end
 
   private
@@ -911,20 +910,13 @@ class DataSpace
     # loop over +@maps+
     db_each(@maps) { |maps_key, maps_value|
       next unless maps_key =~ maps_key_regex
-      attribs1_dbs = $'
-      attribs1 = dbs_to_hash attribs1_dbs
-      next unless attribs1.key?(key) && attribs1[key] == value
-      db_del @maps, maps_key
-      maps_value.split(DB_SEP).each { |attribs2_dbs|
-        db_remove_from_value @maps, id_dbs + DB_SEP + attribs2_dbs,
-                                    attribs1_dbs
-      }
-      next if attribs1.length == 1 # attrib to delete is the only attrib
-      attribs1.delete key
-      @maps[id_dbs + DB_SEP + hash_to_dbs(attribs1)] = maps_value
-      maps_value.split(DB_SEP).each { |attribs2_dbs|
-        db_add_to_value @maps, id_dbs + DB_SEP + attribs2_dbs,
-                               hash_to_dbs(attribs1)
+      maps_value.split(DB_SEP).each { |attrib_dbs|
+        attrib = dbs_to_hash(attrib_dbs)
+        next unless attrib[key] && attrib[key] == value
+        db_remove_from_value @maps, maps_key, attrib_dbs
+        next if attrib.size == 1 # attrib to delete is the only attrib
+        attrib.delete key
+        db_add_to_value @maps, maps_key, hash_to_dbs(attrib)
       }
     }
   end
