@@ -143,7 +143,27 @@ puts ds.search(
   Entity.from_s("*(livesIn:*(isIn:$1), worksIn:*(isIn:$1))")
 ).map { |id| ds.get_entity id }
 
-# 7. Close the data space
+# 7. Mappings can be used to translate between query and store semantics
+#
+ds.insert_attribute_mapping "FERRARI", {"comesFrom" => "ITALY"},
+                            {"originsFrom" => "ITALY"}
+puts "\n"
+puts "All entities that come from ITALY:"
+puts "----------------------------------"
+puts ds.search(
+  Entity.from_s("*(originsFrom:ITALY)")
+).map { |id| ds.get_entity id }
+ds.insert_attribute_mapping "LAURA", {"hasFullName" => '"Laura Smith"'},
+                            {"hasFirstName" => '"Laura"',
+                             "hasSurname" => '"Smith"'}
+puts "\n"
+puts "All entities with the name Laura Smith:"
+puts "---------------------------------------"
+puts ds.search(
+  Entity.from_s('*(hasFirstName:"Laura", hasSurname:"Smith")')
+).map { |id| ds.get_entity id }
+
+# 8. Close the data space
 #
 # ds.clear
 ds.close
