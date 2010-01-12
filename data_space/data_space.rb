@@ -327,13 +327,13 @@ class DataSpace
     end
   end
 
-  # Adds a new mapping for one or a set of existing attributes of an entity.
-  # The mapping can consist of one or a set of attribute name/value pairs.
+  # Adds a new mapping for one or multiple existing attributes of an entity.
+  # The mapping can consist of one or multiple attribute name/value pairs.
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attribs_:: hash with the first attribute name/value pairs
-  # * _mappings_:: hash with the second attribute name/value pairs
+  # * _attribs_:: hash with the existing attribute name/value pairs
+  # * _mappings_:: hash with the mapping attribute name/value pairs
   #
   # === Throws
   # * _ArgumentError_:: if _attribs_ or _mappings_ is no hash, or if one hash
@@ -374,29 +374,26 @@ class DataSpace
     db_add_to_value @maps, maps_key, attribs_dbs
   end
 
-  # Deletes an existing mapping between one or a set of attributes of an
-  # entity and another existing attribute or set of attributes of the same
-  # entity. If both parameters _attribs1_ and _attribs2_ are set to *, all
-  # mappings for the entity are removed.
+  # Deletes an existing mapping for one or multiple attributes of an entity. 
+  # The mapping can consist of one or multiple attribute name/value pairs.
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attribs1_:: hash with the first attribute name/value pairs (or * to
-  #             :: remove all mappings with _attribs2_)
-  # * _attribs2_:: hash with the second attribute name/value pairs (or * to
-  #             :: remove all mappings with _attribs1_)
+  # * _attribs_:: hash with the existing attribute name/value pairs (or * to
+  #            :: remove all mappings with for _id_)
+  # * _mappings_:: hash with the mapping attribute name/value pairs (or * to
+  #             :: remove all mappings for _attribs_)
   #
   # === Throws
-  # * _ArgumentError_:: if _attribs1_ is neither hash nor * or _attribs2_ is
-  #                  :: neither hash nor *
-  # * _NoEntityError_
+  # * _ArgumentError_:: if _attribs_ or _mappings_ is neither hash nor *
+  # * _NoEntityError_:: if the entity does not exist
   # * _NoMappingError_:: if the mapping does not exist
   #
-  def delete_attribute_mapping(id, attribs1, attribs2)
+  def delete_attribute_mapping(id, attribs, mappings)
 
-    unless (attribs1.instance_of?(Hash) || attribs1 == Entity::ANY_VALUE) &&
-           (attribs2.instance_of?(Hash) || attribs2 == Entity::ANY_VALUE)
-      raise ArgumentError, "attribs1 and attribs2 must be either hash or *"
+    unless (attribs.instance_of?(Hash) || attribs == Entity::ANY_VALUE) &&
+           (mappings.instance_of?(Hash) || mappings == Entity::ANY_VALUE)
+      raise ArgumentError, "attribs and mappings must be either hash or *"
     end
 
     id_dbs = s_to_dbs(id)
@@ -405,44 +402,29 @@ class DataSpace
       raise NoEntityError.new id
     end
     
-    if attribs1.instance_of?(Hash) && attribs2.instance_of?(Hash)
+    if attribs.instance_of?(Hash) && mappings.instance_of?(Hash)
       
-      attribs1_dbs, attribs2_dbs = hash_to_dbs(attribs1),
-                                   hash_to_dbs(attribs2)
-      unless db_remove_from_value(@maps, id_dbs + DB_SEP + attribs1_dbs,
-                                  attribs2_dbs) &&
-             db_remove_from_value(@maps, id_dbs + DB_SEP + attribs2_dbs,
-                                  attribs1_dbs)
-        raise NoMappingError.new id, attribs1, attribs2
+      attribs_dbs, mappings_dbs = hash_to_dbs(attribs), hash_to_dbs(mappings)
+      unless db_remove_from_value(@maps, id_dbs + DB_SEP + mappings_dbs,
+                                  attribs_dbs)
+        raise NoMappingError.new id, attribs, mappings
       end
-      
-    elsif attribs1.instance_of?(Hash) || attribs2.instance_of?(Hash)
-      
-      attribs1 = attribs2 if attribs2.instance_of? Hash
-      attribs1_dbs = hash_to_dbs(attribs1)
-      maps_key = id_dbs + DB_SEP + attribs1_dbs
-      unless @maps[maps_key]
-        raise NoMappingError.new id, attribs1, "*"
-      end
-      @maps[maps_key].split(DB_SEP).each { |attribs2_dbs|
-        db_remove_from_value @maps, id_dbs + DB_SEP + attribs2_dbs,
-                             attribs1_dbs
-      }
-      db_del @maps, maps_key
       
     else
       
-      # remove all mappings for entity
+      attribs_dbs = attribs.instance_of?(Hash) ? hash_to_dbs(attribs) : nil
       removed_mapping = false
       maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
       # loop over +@maps+
       db_each(@maps) { |maps_key, maps_value|
         next unless maps_key =~ maps_key_regex
+        next if attribs.instance_of?(Hash) &&
+                ! db_value_contains?(@maps, maps_key, attribs_dbs)
         db_del @maps, maps_key
         removed_mapping = true
       }
       unless removed_mapping
-        raise NoMappingError.new id, attribs1, attribs2
+        raise NoMappingError.new id, attribs, mappings
       end
       
     end
@@ -605,16 +587,16 @@ class DataSpace
 
   class NoMappingError < StandardError
 
-    def initialize(id, attribs1, attribs2)
-      @id, @attribs1, @attribs2 = id, attribs1, attribs2
-      attribs1_s = @attribs1.instance_of?(Hash) ? @attribs1.to_pretty_s :
-                                                  @attribs1
-      attribs2_s = @attribs2.instance_of?(Hash) ? @attribs2.to_pretty_s :
-                                                  @attribs2
-      super "'#{attribs1_s}' and '#{attribs2_s}' are not mapped for entity '#{@id}'."
+    def initialize(id, attribs, mappings)
+      @id, @attribs, @mappings = id, attribs, mappings
+      attribs_s = @attribs.instance_of?(Hash) ? @attribs.to_pretty_s :
+                                                @attribs
+      mappings_s = @mappings.instance_of?(Hash) ? @mappings.to_pretty_s :
+                                                  @mappings
+      super "'#{attribs_s}' are not mapped to '#{attribs_s}' for entity '#{@id}'."
     end
 
-    attr_reader :id, :attribs1, :attribs2
+    attr_reader :id, :attribs, :mappings
   end
 
   private
