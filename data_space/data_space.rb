@@ -327,26 +327,25 @@ class DataSpace
     end
   end
 
-  # Adds a new mapping between one or a set of existing attributes of an
-  # entity and another existing attribute or set of attributes of the same
-  # entity. The mapping is symetric. Use this to express attribute synonymity.
+  # Adds a new mapping for one or a set of existing attributes of an entity.
+  # The mapping can consist of one or a set of attribute name/value pairs.
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity
-  # * _attribs1_:: hash with the first attribute name/value pairs
-  # * _attribs2_:: hash with the second attribute name/value pairs
+  # * _attribs_:: hash with the first attribute name/value pairs
+  # * _mappings_:: hash with the second attribute name/value pairs
   #
   # === Throws
-  # * _ArgumentError_:: if _attribs1_ or _attribs2_ is no hash, or if one hash
+  # * _ArgumentError_:: if _attribs_ or _mappings_ is no hash, or if one hash
   #                  :: is included in the other
-  # * _NoEntityError_
-  # * _NoAttributeError_:: if an attribute doesn't exist
+  # * _NoEntityError_:: if the entity does not exist
+  # * _NoAttributeError_:: if an attribute does not exist
   # * _MappingExistsError_:: if the mapping already exists
   #
-  def insert_attribute_mapping(id, attribs1, attribs2)
+  def insert_attribute_mapping(id, attribs, mappings)
 
-    unless attribs1.instance_of?(Hash) && attribs2.instance_of?(Hash)
-      raise ArgumentError, "attribs1 and attribs2 must be hashes"
+    unless attribs.instance_of?(Hash) && mappings.instance_of?(Hash)
+      raise ArgumentError, "attribs and mappings must be hashes"
     end
 
     id_dbs = s_to_dbs(id)
@@ -355,29 +354,24 @@ class DataSpace
       raise NoEntityError.new id
     end
 
-    if attribs1.contains?(attribs2) || attribs2.contains?(attribs1)
-      raise ArgumentError, "one set of attributes is included in the other set, this mapping makes no sense"
+    if attribs.contains?(mappings) || mappings.contains?(attribs)
+      raise ArgumentError, "one hash is included in the other, this mapping makes no sense"
     end
 
-    [attribs1, attribs2].each { |hash|
-      hash.each { |k, v|
-        unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(k),
-                                  s_to_dbs(v)
-          raise NoAttributeError.new id, k, v
-        end
-      }
+    attribs.each { |k, v|
+      unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(k),
+                                s_to_dbs(v)
+        raise NoAttributeError.new id, k, v
+      end
     }
     
-    attribs1_dbs, attribs2_dbs = hash_to_dbs(attribs1), hash_to_dbs(attribs2)
+    attribs_dbs, mappings_dbs = hash_to_dbs(attribs), hash_to_dbs(mappings)
 
-    maps_key1 = id_dbs + DB_SEP + attribs1_dbs
-    maps_key2 = id_dbs + DB_SEP + attribs2_dbs
-    if db_value_contains?(@maps, maps_key1, attribs2_dbs) ||
-       db_value_contains?(@maps, maps_key2, attribs1_dbs)
-      raise MappingExistsError.new id, attribs1, attribs2
+    maps_key = id_dbs + DB_SEP + mappings_dbs
+    if db_value_contains?(@maps, maps_key, attribs_dbs)
+      raise MappingExistsError.new id, attribs, mappings
     end
-    db_add_to_value @maps, maps_key1, attribs2_dbs
-    db_add_to_value @maps, maps_key2, attribs1_dbs
+    db_add_to_value @maps, maps_key, attribs_dbs
   end
 
   # Deletes an existing mapping between one or a set of attributes of an
@@ -581,12 +575,12 @@ class DataSpace
 
   class MappingExistsError < StandardError
 
-    def initialize(id, attribs1, attribs2)
-      @id, @attribs1, @attribs2 = id, attribs1, attribs2
-      super "'#{@attribs1.to_pretty_s}' and '#{@attribs2.to_pretty_s}' are already mapped for entity '#{@id}'."
+    def initialize(id, attribs, mappings)
+      @id, @attribs, @mappings = id, attribs, mappings
+      super "'#{@attribs.to_pretty_s}' are already mapped to '#{@mappings.to_pretty_s}' for entity '#{@id}'."
     end
 
-    attr_reader :id, :attribs1, :attribs2
+    attr_reader :id, :attribs, :mappings
   end
   
   class NoEntityError < StandardError
