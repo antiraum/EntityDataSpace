@@ -66,13 +66,14 @@ class DataSpace
   # === Parameters
   # * _bdb_path_:: directory containing the Berkeley DB files to use
   #             :: (is created if doesn't exist)
-  # * _use_idx_:: use inverted indexes
-  # * _use_add_idx_:: use inverted indexes and additional indexes
+  # * _options_:: options hash (available keys: _:use_indexes_ (use inverted
+  #            :: indexes) and _:use_all_indexes_ (use inverted indexes and
+  #            :: additional indexes))
   #
-  def initialize(bdb_path, use_idx = true, use_add_idx = true)
+  def initialize(bdb_path, options = {})
     
-    @use_idx = @use_add_idx = use_add_idx
-    @use_idx ||= use_idx
+    @use_idx = @use_add_idx = options[:use_all_indexes]
+    @use_idx ||= options[:use_indexes]
     
     FileUtils::mkdir bdb_path unless File.exists? bdb_path
     
@@ -436,7 +437,7 @@ class DataSpace
   # === Parameters
   # * _query_:: +RootEntity+ object
   # * _options_:: options hash (available keys: _:use_mappings_ and _:verbose_
-  #            :: (print debug output)
+  #            :: (print debug output))
   #
   # === Returns
   # * Array of entity ids.

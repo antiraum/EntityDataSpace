@@ -18,12 +18,12 @@ class DataSpaceTest < Test::Unit::TestCase
   #
   def run_test_block
     [
-      [false, false],
-      [true, false],
-      [true, true]
-    ].each { |args|
+      {},
+      {:use_indexes => true},
+      {:use_all_indexes => true}
+    ].each { |options|
       FileUtils::rm_r BDB_PATH if File.exists? BDB_PATH
-      @ds = DataSpace.new BDB_PATH, args.shift, args.shift
+      @ds = DataSpace.new BDB_PATH, options
       yield
       @ds.close
       FileUtils::rm_r BDB_PATH
@@ -147,6 +147,107 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.delete_entity TestVars::ID1
     }
   end
+  
+  def test_delete_attribute
+    
+    run_test_block {
+      
+      @ds.insert_entity TestVars::ID1
+      @ds.insert_entity TestVars::ID2
+      
+      # test ok
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_ID_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      assert_equal [], @ds.search(TestVars::ENTITY_ID_ATTRIB)
+      
+      # test no attribute
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      }
+      
+      # test all attributes
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE,
+                             Entity::ANY_VALUE
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
+      }
+      
+      # test all attributes with same key
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      }
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
+      }
+      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
+      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
+      
+      # test all attributes with same value
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, TestVars::STR1),
+                     Entity.new(TestVars::KEY2, TestVars::STR1)
+                   ]))
+      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, TestVars::STR1
+      assert_raise(DataSpace::NoAttributeError) {
+        @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, TestVars::STR1
+      }
+      assert_equal [],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY1, TestVars::STR1)
+                   ]))
+      assert_equal [],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY2, TestVars::STR1)
+                   ]))
+      
+      # test one attribute of several with same key
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY2, TestVars::STR1),
+                     Entity.new(TestVars::KEY2, TestVars::STR2)
+                   ]))
+      @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
+      assert_equal [],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY2, TestVars::STR1),
+                     Entity.new(TestVars::KEY2, TestVars::STR2)
+                   ]))
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(RootEntity.new(TestVars::ID1, [
+                     Entity.new(TestVars::KEY2, TestVars::STR2)
+                   ]))
+                   
+      # TODO test mapping removal
+    }
+  end
 
   def test_insert_attribute_mapping
     
@@ -161,15 +262,27 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1 },
-        { TestVars::KEY1 => TestVars::STR2 }
+        { TestVars::KEY3 => TestVars::STR2 }
       )
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
+                     
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1,
           TestVars::KEY2 => TestVars::STR2 },
-        { TestVars::KEY1 => TestVars::STR2,
-          TestVars::KEY2 => TestVars::STR1 }
+        { TestVars::KEY1 => TestVars::STR1,
+          TestVars::KEY3 => TestVars::STR2 }
       )
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY1, TestVars::STR1),
+                       Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
     
       # test argument error
       assert_raise(ArgumentError) {
@@ -243,9 +356,9 @@ class DataSpaceTest < Test::Unit::TestCase
         @ds.insert_attribute_mapping(
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR1,
-            TestVars::KEY2 => TestVars::STR2 },
+            TestVars::KEY2 => TestVars::ID1 },
           { TestVars::KEY1 => TestVars::STR2,
-            TestVars::KEY2 => TestVars::ID1 }
+            TestVars::KEY2 => TestVars::STR2 }
         )
       }
     
@@ -254,14 +367,7 @@ class DataSpaceTest < Test::Unit::TestCase
         @ds.insert_attribute_mapping(
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR1 },
-          { TestVars::KEY1 => TestVars::STR2 }
-        )
-      }
-      assert_raise(DataSpace::MappingExistsError) {
-        @ds.insert_attribute_mapping(
-          TestVars::ID1,
-          { TestVars::KEY1 => TestVars::STR2 },
-          { TestVars::KEY1 => TestVars::STR1 }
+          { TestVars::KEY3 => TestVars::STR2 }
         )
       }
       assert_raise(DataSpace::MappingExistsError) {
@@ -270,7 +376,7 @@ class DataSpaceTest < Test::Unit::TestCase
           { TestVars::KEY1 => TestVars::STR1,
             TestVars::KEY2 => TestVars::STR2 },
           { TestVars::KEY1 => TestVars::STR2,
-            TestVars::KEY2 => TestVars::STR1 }
+            TestVars::KEY3 => TestVars::STR1 }
         )
       }
     
@@ -293,6 +399,7 @@ class DataSpaceTest < Test::Unit::TestCase
         { TestVars::KEY1 => TestVars::STR1 },
         { TestVars::KEY1 => TestVars::STR2 }
       )
+      
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         { TestVars::KEY1 => TestVars::STR1,
@@ -424,107 +531,6 @@ class DataSpaceTest < Test::Unit::TestCase
       }
     
       # TODO check with search
-    }
-  end
-  
-  def test_delete_attribute
-    
-    run_test_block {
-      
-      @ds.insert_entity TestVars::ID1
-      @ds.insert_entity TestVars::ID2
-      
-      # test ok
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
-      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      assert_equal [], @ds.search(TestVars::ENTITY_STR_ATTRIB)
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_ID_ATTRIB)
-      @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-      assert_equal [], @ds.search(TestVars::ENTITY_ID_ATTRIB)
-      
-      # test no attribute
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      }
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-      }
-      
-      # test all attributes
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE,
-                             Entity::ANY_VALUE
-      }
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      }
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY1, TestVars::ID2
-      }
-      
-      # test all attributes with same key
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
-      @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, Entity::ANY_VALUE
-      }
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
-      }
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
-      }
-      assert_equal [ TestVars::ID1 ], @ds.search(TestVars::ENTITY_STR_ATTRIB)
-      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, Entity::ANY_VALUE
-      
-      # test all attributes with same value
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY1, TestVars::STR1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
-      assert_equal [ TestVars::ID1 ],
-                   @ds.search(RootEntity.new(TestVars::ID1, [
-                     Entity.new(TestVars::KEY1, TestVars::STR1),
-                     Entity.new(TestVars::KEY2, TestVars::STR1)
-                   ]))
-      @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, TestVars::STR1
-      assert_raise(DataSpace::NoAttributeError) {
-        @ds.delete_attribute TestVars::ID1, Entity::ANY_VALUE, TestVars::STR1
-      }
-      assert_equal [],
-                   @ds.search(RootEntity.new(TestVars::ID1, [
-                     Entity.new(TestVars::KEY1, TestVars::STR1)
-                   ]))
-      assert_equal [],
-                   @ds.search(RootEntity.new(TestVars::ID1, [
-                     Entity.new(TestVars::KEY2, TestVars::STR1)
-                   ]))
-      
-      # test one attribute of several with same key
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
-      @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
-      assert_equal [ TestVars::ID1 ],
-                   @ds.search(RootEntity.new(TestVars::ID1, [
-                     Entity.new(TestVars::KEY2, TestVars::STR1),
-                     Entity.new(TestVars::KEY2, TestVars::STR2)
-                   ]))
-      @ds.delete_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
-      assert_equal [],
-                   @ds.search(RootEntity.new(TestVars::ID1, [
-                     Entity.new(TestVars::KEY2, TestVars::STR1),
-                     Entity.new(TestVars::KEY2, TestVars::STR2)
-                   ]))
-      assert_equal [ TestVars::ID1 ],
-                   @ds.search(RootEntity.new(TestVars::ID1, [
-                     Entity.new(TestVars::KEY2, TestVars::STR2)
-                   ]))
-                   
-      # TODO test mapping removal
     }
   end
   

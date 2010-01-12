@@ -11,7 +11,8 @@ require "entity"
 
 # 1. Create the DataSpace object
 #
-ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb")
+ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb"),
+                   :use_all_indexes => true
 
 # 2. Insert some entities
 #

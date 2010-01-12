@@ -16,9 +16,9 @@ require "test_vars"
 # Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
 
 MODES = {
-  "1. Store Only" => [false, false],
-  "2. Inverted Indexes" => [true, false],
-  "3. Additional Indexes" => [true, true]
+  "1. Store Only" => {},
+  "2. Inverted Indexes" => {:use_indexes => true},
+  "3. All Indexes" => {:use_all_indexes => true}
 }.sort
 
 BDB_PATH = File.join(File.dirname(__FILE__), "benchmark.bdb")
@@ -34,7 +34,7 @@ MODES.each { |mode_name, mode_args|
   
   # create data space
   FileUtils::rm_r BDB_PATH if File.exists? BDB_PATH
-  ds = DataSpace.new BDB_PATH, mode_args.shift, mode_args.shift
+  ds = DataSpace.new BDB_PATH, mode_args
   
   # fill with dummy data
   # insert nodes
