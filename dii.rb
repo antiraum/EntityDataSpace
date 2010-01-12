@@ -145,22 +145,37 @@ puts ds.search(
 
 # 7. Mappings can be used to translate between query and store semantics
 #
-ds.insert_attribute_mapping "FERRARI", {"comesFrom" => "ITALY"},
-                            {"originsFrom" => "ITALY"}
+begin
+  ds.insert_attribute_mapping "FERRARI", {"comesFrom" => "ITALY"},
+                              {"originsFrom" => "ITALY"}
+rescue DataSpace::NoEntityError => e
+  puts e
+rescue DataSpace::NoAttributeError => e
+  puts e
+rescue DataSpace::MappingExistsError => e
+end
 puts "\n"
 puts "All entities that come from ITALY:"
 puts "----------------------------------"
 puts ds.search(
-  Entity.from_s("*(originsFrom:ITALY)")
+  Entity.from_s("*(originsFrom:ITALY)"), :use_mappings => true
 ).map { |id| ds.get_entity id }
-ds.insert_attribute_mapping "LAURA", {"hasFullName" => '"Laura Smith"'},
-                            {"hasFirstName" => '"Laura"',
-                             "hasSurname" => '"Smith"'}
+begin
+  ds.insert_attribute_mapping "LAURA", {"hasFullName" => '"Laura Smith"'},
+                              {"hasFirstName" => '"Laura"',
+                               "hasSurname" => '"Smith"'}
+rescue DataSpace::NoEntityError => e
+  puts e
+rescue DataSpace::NoAttributeError => e
+  puts e
+rescue DataSpace::MappingExistsError => e
+end
 puts "\n"
 puts "All entities with the name Laura Smith:"
 puts "---------------------------------------"
 puts ds.search(
-  Entity.from_s('*(hasFirstName:"Laura", hasSurname:"Smith")')
+  Entity.from_s('*(hasFirstName:"Laura", hasSurname:"Smith")'),
+  :use_mappings => true
 ).map { |id| ds.get_entity id }
 
 # 8. Close the data space
