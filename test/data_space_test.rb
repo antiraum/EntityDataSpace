@@ -749,6 +749,11 @@ class DataSpaceTest < Test::Unit::TestCase
                                     [ TestVars::KEY3, TestVars::ID3 ]]
       # assert_equal [ TestVars::ID1 ],
       #              @ds.search(RootEntity.new(Entity::ANY_VALUE, [
+      #                Entity.new(Entity::ANY_VALUE, TestVars::ID2),
+      #                Entity.new(Entity::ANY_VALUE, TestVars::ID3)
+      #              ]), :use_mappings => true)
+      # assert_equal [ TestVars::ID1 ],
+      #              @ds.search(RootEntity.new(Entity::ANY_VALUE, [
       #                Entity.new(TestVars::VAR1, TestVars::ID2),
       #                Entity.new(TestVars::VAR1, TestVars::ID3)
       #              ]), :use_mappings => true)
