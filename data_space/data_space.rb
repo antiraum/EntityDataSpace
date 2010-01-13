@@ -246,11 +246,11 @@ class DataSpace
   end
 
   # Removes an existing attribute from an entity. Also removes the attribute
-  # from all mappings containing it.
+  # from all entity specific mappings containing it.
   #
   # === Parameters
   # * _id_:: identifier of the entity
-  # * _key_:: name of the attribute (* to remove all attributes)
+  # * _key_:: name of the attribute (* to remove all attributes for _id_)
   # * _value_:: value of the attribute (* to remove all attributes with _key_)
   #
   # === Throws
@@ -328,11 +328,13 @@ class DataSpace
     end
   end
 
-  # Adds a new mapping for one or multiple existing attributes of an entity.
-  # The mapping can consist of one or multiple attribute name/value pairs.
+  # Adds a new mapping for one or multiple existing attributes. The mapping as
+  # well can consist of one or multiple attribute name/value pairs. Mappings
+  # can be created either for a specific entity or generic.
   #
   # === Parameters
-  # * _id_:: identifier of the attributes' entity
+  # * _id_:: identifier of the attributes' entity (or * to make the mapping
+  #       :: generic)
   # * _attrib_:: array with the existing attribute name/value pairs
   # * _mapping_:: array with the mapping attribute name/value pairs
   #
@@ -344,6 +346,12 @@ class DataSpace
   # * _MappingExistsError_:: if the mapping already exists
   #
   def insert_attribute_mapping(id, attrib, mapping)
+
+    id_dbs = s_to_dbs(id)
+
+    unless id == Entity::ANY_VALUE || @store[id_dbs]
+      raise NoEntityError.new id
+    end
 
     unless attrib.instance_of?(Array) && mapping.instance_of?(Array)
       raise ArgumentError, "attrib and mapping must be arrays"
@@ -357,23 +365,19 @@ class DataSpace
       }
     }
 
-    id_dbs = s_to_dbs(id)
-
-    unless @store[id_dbs]
-      raise NoEntityError.new id
+    intersec = attrib & mapping
+    if intersec == attrib || intersec == mapping
+      raise ArgumentError, "one attribute set is included in the other, this mapping makes no sense"
     end
-
-    intersect = attrib & mapping
-    if intersect == attrib || intersect == mapping
-      raise ArgumentError, "one array is included in the other, this mapping makes no sense"
+    
+    unless id == Entity::ANY_VALUE
+      attrib.each { |pair|
+        unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(pair[0]),
+                                  s_to_dbs(pair[1])
+          raise NoAttributeError.new id, pair[0], pair[1]
+        end
+      }
     end
-
-    attrib.each { |pair|
-      unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(pair[0]),
-                                s_to_dbs(pair[1])
-        raise NoAttributeError.new id, pair[0], pair[1]
-      end
-    }
     
     attrib_dbs, mapping_dbs = array_to_dbs(attrib), array_to_dbs(mapping)
 
@@ -384,11 +388,10 @@ class DataSpace
     db_add_to_value @maps, maps_key, attrib_dbs
   end
 
-  # Deletes an existing mapping for one or multiple attributes of an entity. 
-  # The mapping can consist of one or multiple attribute name/value pairs.
+  # Deletes an existing generic or entity specific mapping.
   #
   # === Parameters
-  # * _id_:: identifier of the attributes' entity
+  # * _id_:: identifier of the attributes' entity (or * for a generic mapping)
   # * _attrib_:: array with the existing attribute name/value pairs (or * to
   #           :: remove all mappings with for _id_)
   # * _mapping_:: array with the mapping attribute name/value pairs (or * to
@@ -400,6 +403,12 @@ class DataSpace
   # * _NoMappingError_:: if the mapping does not exist
   #
   def delete_attribute_mapping(id, attrib, mapping)
+
+    id_dbs = s_to_dbs(id)
+
+    unless id == Entity::ANY_VALUE || @store[id_dbs]
+      raise NoEntityError.new id
+    end
 
     unless (attrib.instance_of?(Array) || attrib == Entity::ANY_VALUE) &&
            (mapping.instance_of?(Array) || mapping == Entity::ANY_VALUE)
@@ -414,12 +423,6 @@ class DataSpace
         end
       }
     }
-
-    id_dbs = s_to_dbs(id)
-
-    unless @store[id_dbs]
-      raise NoEntityError.new id
-    end
     
     if attrib.instance_of?(Array) && mapping.instance_of?(Array)
       
