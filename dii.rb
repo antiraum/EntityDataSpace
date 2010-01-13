@@ -38,8 +38,6 @@ ds = DataSpace.new File.join(File.dirname(__FILE__), "dii.bdb"),
   %w{PETER isCookingFor PETER}, %w{PETER isCookingFor SUSAN} ].each { |attrib|
   begin
     ds.insert_attribute attrib.shift, attrib.shift, attrib.shift
-  rescue DataSpace::NoEntityError => e
-    puts e
   rescue DataSpace::AttributeExistsError => e
   end
 }
@@ -146,12 +144,8 @@ puts ds.search(
 # 7. Mappings can be used to translate between query and store semantics
 #
 begin
-  ds.insert_attribute_mapping "FERRARI", {"comesFrom" => "ITALY"},
-                              {"originsFrom" => "ITALY"}
-rescue DataSpace::NoEntityError => e
-  puts e
-rescue DataSpace::NoAttributeError => e
-  puts e
+  ds.insert_attribute_mapping "FERRARI", [["comesFrom", "ITALY"]],
+                              [["originsFrom", "ITALY"]]
 rescue DataSpace::MappingExistsError => e
 end
 puts "\n"
@@ -161,13 +155,9 @@ puts ds.search(
   Entity.from_s("*(originsFrom:ITALY)"), :use_mappings => true
 ).map { |id| ds.get_entity id }
 begin
-  ds.insert_attribute_mapping "LAURA", {"hasFullName" => '"Laura Smith"'},
-                              {"hasFirstName" => '"Laura"',
-                               "hasSurname" => '"Smith"'}
-rescue DataSpace::NoEntityError => e
-  puts e
-rescue DataSpace::NoAttributeError => e
-  puts e
+  ds.insert_attribute_mapping "LAURA", [["hasFullName", '"Laura Smith"']],
+                              [["hasFirstName", '"Laura"'],
+                               ["hasSurname", '"Smith"']]
 rescue DataSpace::MappingExistsError => e
 end
 puts "\n"
