@@ -490,7 +490,8 @@ class DataSpace
       if (options[:use_mappings] &&
           entity_complies_with_mappings?(id_dbs, query.children,
                                          vars, options[:verbose])) ||
-          entity_complies?(id_dbs, query.children, vars, options[:verbose])
+          entity_complies?(id_dbs, query.children, vars, false,
+                           options[:verbose])
         puts "TRUE #{id_dbs} complies" if options[:verbose]
         next
       end
@@ -1035,7 +1036,7 @@ class DataSpace
             s.chomp! ", "
             puts s
           end
-          if entity_complies?(id_dbs, childs, vars, verb)
+          if entity_complies?(id_dbs, childs, vars, true, verb)
             puts "alternative complies" if verb
             alt_complies = true
             break
@@ -1068,12 +1069,14 @@ class DataSpace
   # * _id_dbs_:: entity identifier
   # * _conditions_:: array of +Entity+ objects (trees)
   # * _vars_:: hash of query variables with their values
+  # * _use_maps_:: recurse through +entity_complies_with_mappings?+
   # * _verb_:: print debug output
   #
   # === Returns
   # * +true+ if conditions fulfilled, +false+ if not
   #
-  def entity_complies?(id_dbs, conditions, vars = {}, verb = false)
+  def entity_complies?(id_dbs, conditions, vars = {}, use_maps = false,
+                       verb = false)
 
     return true if conditions.empty?   
 
@@ -1163,7 +1166,11 @@ class DataSpace
               next if value_var && vars.value?(v_dbs) # vars must differ
               puts "checking #{k_dbs} : #{v_dbs}" if verb
               vars[value_var] = v_dbs if value_var # diff var value per run
-              unless entity_complies?(v_dbs, child.children, vars, verb)
+              unless (use_maps &&
+                      entity_complies_with_mappings?(v_dbs, child.children,
+                                                     vars, verb)) ||
+                     entity_complies?(v_dbs, child.children, vars, false, 
+                                      verb)
                 puts "FALSE #{v_dbs} doesn't comply" if verb
                 next
               end
@@ -1177,7 +1184,11 @@ class DataSpace
             next if value_var && vars.value?(v_dbs) # vars must differ
             puts "checking * : #{v_dbs}" if verb
             vars[value_var] = v_dbs if value_var # diff var value per run
-            unless entity_complies?(v_dbs, child.children, vars, verb)
+            unless (use_maps &&
+                    entity_complies_with_mappings?(v_dbs, child.children,
+                                                   vars, verb)) ||
+                   entity_complies?(v_dbs, child.children, vars, false,
+                                    verb)
               puts "FALSE #{v_dbs} doesn't comply" if verb
               next
             end
@@ -1230,7 +1241,11 @@ class DataSpace
           key_dbs.each { |k_dbs|
             next if vars.value?(k_dbs) # vars must differ
             vars[key_var] = k_dbs # diff var value per run
-            unless entity_complies?(value_dbs, child.children, vars, verb)
+            unless (use_maps &&
+                    entity_complies_with_mappings?(value_dbs, child.children,
+                                                   vars, verb)) ||
+                   entity_complies?(value_dbs, child.children, vars, false,
+                                    verb)
               puts "FALSE #{value_dbs} doesn't comply" if verb
               next
             end
@@ -1244,7 +1259,11 @@ class DataSpace
         else
           # recurse
           next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
-          unless entity_complies?(value_dbs, child.children, vars, verb)
+          unless (use_maps &&
+                  entity_complies_with_mappings?(value_dbs, child.children,
+                                                 vars, verb)) ||
+                 entity_complies?(value_dbs, child.children, vars, false, 
+                                  verb)
             puts "FALSE #{value_dbs} doesn't comply" if verb
             return false
           end
@@ -1264,7 +1283,11 @@ class DataSpace
         store_value.split(DB_SEP).each { |v_dbs|
           next if value_var && vars.value?(v_dbs) # vars must differ
           vars[value_var] = v_dbs if value_var # diff var value per run
-          unless entity_complies?(v_dbs, child.children, vars, verb)
+          unless (use_maps &&
+                  entity_complies_with_mappings?(v_dbs, child.children,
+                                                 vars, verb)) ||
+                 entity_complies?(v_dbs, child.children, vars, false,
+                                  verb)
             puts "FALSE #{v_dbs} doesn't comply" if verb
             next
           end
@@ -1288,7 +1311,11 @@ class DataSpace
         
         # recurse
         next if value_dbs =~ @@ATTRIB_STR_VALUE_REGEX
-        unless entity_complies?(value_dbs, child.children, vars, verb)
+        unless (use_maps &&
+                entity_complies_with_mappings?(value_dbs, child.children,
+                                               vars, verb)) ||
+                entity_complies?(value_dbs, child.children, vars, false,
+                                 verb)
           puts "FALSE #{value_dbs} doesn't comply" if verb
           return false
         end
