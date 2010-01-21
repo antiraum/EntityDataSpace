@@ -341,7 +341,7 @@ class DataSpace
   # === Throws
   # * _ArgumentError_:: if _attrib_ or _mapping_ is not an array of name/value
   #                  :: pairs or if one array is included in the other
-  # * _NoEntityError_:: if the entity does not exist
+  # * _NoEntityError_:: if the mapping is specific and the entity does not exist
   # * _NoAttributeError_:: if an attribute does not exist
   # * _MappingExistsError_:: if the mapping already exists
   #
@@ -399,7 +399,7 @@ class DataSpace
   #
   # === Throws
   # * _ArgumentError_:: if _attrib_ or _mapping_ is neither hash nor *
-  # * _NoEntityError_:: if the entity does not exist
+  # * _NoEntityError_:: if the mappping is specific and the entity does not exist
   # * _NoMappingError_:: if the mapping does not exist
   #
   def delete_attribute_mapping(id, attrib, mapping)
@@ -985,7 +985,7 @@ class DataSpace
   def entity_complies_with_mappings?(id_dbs, conditions, vars = {},
                                      verb = false)
                                      
-    # has to comply for one partition
+    # has to comply for one partitioning
     partitioning_complies = false
     get_partitionings(conditions) { |partitioning|
       if verb
@@ -1016,20 +1016,24 @@ class DataSpace
         if partition.length != partition_array.length && verb
           puts "ERROR translation to partition array went wrong"
         end
-        mappings = @maps[id_dbs + DB_SEP + array_to_dbs(partition_array)]
         alt_childs = [partition]
-        unless mappings.nil?
-          puts "NUM MAPPINGS FOUND: #{mappings.split(DB_SEP).length}" if verb
-          mappings.split(DB_SEP).each { |mapping_dbs|
-            childs = []
-            dbs_to_array(mapping_dbs).each { |pair|
-              childs << Entity.new(pair[0], pair[1])
+        # look for mappings
+        partition_array_dbs = array_to_dbs(partition_array);
+        { "SPECIFIC" => id_dbs, "GENERIC" => Entity::ANY_VALUE }.each { |map_type, map_id_dbs|
+          mappings = @maps[map_id_dbs + DB_SEP + partition_array_dbs]
+          unless mappings.nil?
+            puts "NUM #{map_type} MAPPINGS FOUND: #{mappings.split(DB_SEP).length}" if verb
+            mappings.split(DB_SEP).each { |mapping_dbs|
+              childs = []
+              dbs_to_array(mapping_dbs).each { |pair|
+                childs << Entity.new(pair[0], pair[1])
+              }
+              alt_childs << childs
             }
-            alt_childs << childs
-          }
-        else
-          puts "NO MAPPINGS FOUND" if verb
-        end
+          else
+            puts "NO #{map_type} MAPPINGS FOUND" if verb
+          end
+        }
         # has to comply for one alternative
         alt_complies = false
         alt_childs.each { |childs|

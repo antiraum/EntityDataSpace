@@ -258,7 +258,7 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
     
-      # test ok
+      # test ok specific
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         [[ TestVars::KEY1, TestVars::STR1 ]],
@@ -269,7 +269,6 @@ class DataSpaceTest < Test::Unit::TestCase
                      RootEntity.new(TestVars::ID1, [
                        Entity.new(TestVars::KEY3, TestVars::STR2)
                      ]), :use_mappings => true)
-                     
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         [[ TestVars::KEY1, TestVars::STR1 ],
@@ -277,12 +276,36 @@ class DataSpaceTest < Test::Unit::TestCase
         [[ TestVars::KEY1, TestVars::STR1 ],
          [ TestVars::KEY3, TestVars::STR2 ]]
       )
-      
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
                      RootEntity.new(TestVars::ID1, [
                        Entity.new(TestVars::KEY1, TestVars::STR1),
                        Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
+                     
+      # test ok generic
+      @ds.insert_attribute_mapping(
+        Entity::ANY_VALUE,
+        [[ TestVars::KEY1, TestVars::STR2 ]],
+        [[ TestVars::KEY3, TestVars::STR1 ]]
+      )
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(Entity::ANY_VALUE, [
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
+                     ]), :use_mappings => true)
+      @ds.insert_attribute_mapping(
+        Entity::ANY_VALUE,
+        [[ TestVars::KEY1, TestVars::STR2 ],
+         [ TestVars::KEY2, TestVars::STR1 ]],
+        [[ TestVars::KEY1, TestVars::STR1 ],
+         [ TestVars::KEY3, TestVars::STR1 ]]
+      )
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(Entity::ANY_VALUE, [
+                       Entity.new(TestVars::KEY1, TestVars::STR1),
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
                      ]), :use_mappings => true)
     
       # test argument error
@@ -394,12 +417,12 @@ class DataSpaceTest < Test::Unit::TestCase
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR1
       @ds.insert_attribute TestVars::ID1, TestVars::KEY2, TestVars::STR2
     
-      # test ok
+      # test ok specific
       @ds.insert_attribute_mapping(
         TestVars::ID1,
         [[ TestVars::KEY1, TestVars::STR1 ]],
         [[ TestVars::KEY3, TestVars::STR2 ]]
-      )  
+      )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
                      RootEntity.new(TestVars::ID1, [
@@ -440,6 +463,54 @@ class DataSpaceTest < Test::Unit::TestCase
                      RootEntity.new(TestVars::ID1, [
                        Entity.new(TestVars::KEY1, TestVars::STR1),
                        Entity.new(TestVars::KEY3, TestVars::STR2)
+                     ]), :use_mappings => true)
+      
+      # test ok generic
+      @ds.insert_attribute_mapping(
+        Entity::ANY_VALUE,
+        [[ TestVars::KEY1, TestVars::STR2 ]],
+        [[ TestVars::KEY3, TestVars::STR1 ]]
+      )
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(Entity::ANY_VALUE, [
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
+                     ]), :use_mappings => true)
+      @ds.insert_attribute_mapping(
+        Entity::ANY_VALUE,
+        [[ TestVars::KEY1, TestVars::STR2 ],
+         [ TestVars::KEY2, TestVars::STR1 ]],
+        [[ TestVars::KEY1, TestVars::STR1 ],
+         [ TestVars::KEY3, TestVars::STR1 ]]
+      )
+      assert_equal [ TestVars::ID1 ],
+                   @ds.search(
+                     RootEntity.new(Entity::ANY_VALUE, [
+                       Entity.new(TestVars::KEY1, TestVars::STR1),
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
+                     ]), :use_mappings => true)
+      @ds.delete_attribute_mapping(
+        Entity::ANY_VALUE,
+        [[ TestVars::KEY1, TestVars::STR2 ]],
+        [[ TestVars::KEY3, TestVars::STR1 ]]
+      )
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
+                     ]), :use_mappings => true)
+      @ds.delete_attribute_mapping(
+        Entity::ANY_VALUE,
+        [[ TestVars::KEY1, TestVars::STR2 ],
+         [ TestVars::KEY2, TestVars::STR1 ]],
+        [[ TestVars::KEY1, TestVars::STR1 ],
+         [ TestVars::KEY3, TestVars::STR1 ]]
+      )
+      assert_equal [],
+                   @ds.search(
+                     RootEntity.new(TestVars::ID1, [
+                       Entity.new(TestVars::KEY1, TestVars::STR1),
+                       Entity.new(TestVars::KEY3, TestVars::STR1)
                      ]), :use_mappings => true)
       
       # test ok with wildcard
