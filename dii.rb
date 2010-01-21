@@ -128,7 +128,7 @@ puts "-----------------------------------------------------------------------"
 puts ds.search(
   RootEntity.new("$x", [
     Entity.new("$y", "$x"),
-    Entity.new("$y", "*")
+    Entity.new("$y", "$z")
   ])
 ).map { |id| ds.get_entity id }
 
