@@ -476,25 +476,25 @@ class DataSpace
     end
     
     # check entities
-    results.delete_if { |id_dbs|
+    results.delete_if { |r_id_dbs|
       # TODO enable variables among results
-      vars = query.value =~ @@VAR_REGEX ? {$' => id_dbs} : {}
+      vars = query.value =~ @@VAR_REGEX ? {$' => r_id_dbs} : {}
       if (options[:use_mappings] &&
-          entity_complies_with_mappings?(id_dbs, query.children,
+          entity_complies_with_mappings?(r_id_dbs, query.children,
                                          vars, options[:verbose])) ||
-          entity_complies?(id_dbs, query.children, vars, false,
+          entity_complies?(r_id_dbs, query.children, vars, false,
                            options[:verbose])
-        puts "TRUE #{id_dbs} complies" if options[:verbose]
+        puts "TRUE #{r_id_dbs} complies" if options[:verbose]
         next
       end
       if options[:verbose]
-        puts "FALSE #{id_dbs} doesn't comply"
+        puts "FALSE #{r_id_dbs} doesn't comply"
         puts "=" * 60
       end
       true
     }
     
-    results.map { |id_dbs| dbs_to_s(id_dbs) }
+    results.map { |r_id_dbs| dbs_to_s(r_id_dbs) }
   end
   
   # Retrieves the +Entity+ object tree for an entity id.
@@ -1151,10 +1151,10 @@ class DataSpace
         # recurse over all key and/or value values
         found_value = false
         if key_var
-          key_dbs.each { |k_dbs, value_dbs|
+          key_dbs.each { |k_dbs, val_dbs|
             next if vars.value?(k_dbs) # vars must differ
             vars[key_var] = k_dbs # diff var value per run
-            value_dbs.each { |v_dbs|
+            val_dbs.each { |v_dbs|
               next if value_var && vars.value?(v_dbs) # vars must differ
               puts "checking #{k_dbs} : #{v_dbs}" if verb
               vars[value_var] = v_dbs if value_var # diff var value per run
