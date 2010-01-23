@@ -4,4 +4,5 @@ require "test/unit"
 
 $LOAD_PATH.unshift File.dirname(__FILE__)
 require "entity_test"
+require "attributes_test"
 require "data_space_test"
