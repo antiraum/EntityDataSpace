@@ -144,20 +144,11 @@ puts ds.search(
 # 7. Mappings can be used to translate between query and store semantics
 #
 begin
-  ds.insert_attribute_mapping "FERRARI", [["comesFrom", "ITALY"]],
-                              [["originsFrom", "ITALY"]]
-rescue DataSpace::MappingExistsError => e
-end
-puts "\n"
-puts "All entities that come from ITALY:"
-puts "----------------------------------"
-puts ds.search(
-  Entity.from_s("*(originsFrom:ITALY)"), :use_mappings => true
-).map { |id| ds.get_entity id }
-begin
-  ds.insert_attribute_mapping "LAURA", [["hasFullName", '"Laura Smith"']],
-                              [["hasFirstName", '"Laura"'],
-                               ["hasSurname", '"Smith"']]
+  ds.insert_attribute_mapping "LAURA",
+                              Attributes.new(["hasFullName",
+                                              '"Laura Smith"']),
+                              Attributes.new(["hasFirstName", '"Laura"'],
+                                             ["hasSurname", '"Smith"'])
 rescue DataSpace::MappingExistsError => e
 end
 puts "\n"
@@ -168,7 +159,20 @@ puts ds.search(
   :use_mappings => true
 ).map { |id| ds.get_entity id }
 
-# 8. Close the data space
+# 8. Mappings can also be specified as string
+begin
+  ds.insert_attribute_mapping "*", Attributes.from_s("comesFrom:ITALY"),
+                              Attributes.from_s("originsFrom:ITALY")
+rescue DataSpace::MappingExistsError => e
+end
+puts "\n"
+puts "All entities that come from ITALY:"
+puts "----------------------------------"
+puts ds.search(
+  Entity.from_s("*(originsFrom:ITALY)"), :use_mappings => true
+).map { |id| ds.get_entity id }
+
+# 9. Close the data space
 #
 # ds.clear
 ds.close
