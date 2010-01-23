@@ -20,6 +20,7 @@ class TestVars
   KEY3 = 'qk#9282<nQ8uJ34,Ycnoj9N,bsTg}v>wWVqmx.%ZtNyr)4v=6B'
   STR1 = '"3oEk b*7G{9kEAD 3e*kh7iq [ Dxm 9Dqq Ld8cH:P7 ]=?wH28N"'  
   STR2 = '"}p{63oP#*{E997pnE2NUoY  QHdD2ahY&2N rRXm$<N=Ns64U}AGt"'
+  STR3 = '"$e:96XeH^PpfKmibbo3nDxu,646fb*iMXnX7{3n49J&Rt>.&Nr"'
   VAR1 = '$Cr%B){hNJ9Z2 o2KR8x^KsN2R 8krN9j:U' + DataSpace::DB_SEP + 
          'EzKq=N 9@PVw]7D{[4a'
   VAR2 = '$*cD$/]xgBa{b 3gxW9434y"' + DataSpace::DB_SEP +
@@ -35,6 +36,7 @@ class TestVars
   # KEY3 = "this is " + DataSpace::DB_SEP + " key3"
   # STR1 = '"this is ' + DataSpace::DB_SEP + ' str1"'
   # STR2 = '"this is ' + DataSpace::DB_SEP + ' str2"'
+  # STR3 = '"this is ' + DataSpace::DB_SEP + ' str3"'
   # VAR1 = "$this is " + DataSpace::DB_SEP + " var1"
   # VAR2 = "$this is " + DataSpace::DB_SEP + " var2"
   # VAR3 = "$this is " + DataSpace::DB_SEP + " var3"
@@ -47,6 +49,7 @@ class TestVars
   # KEY3 = "key3"
   # STR1 = '"str1"'
   # STR2 = '"str2"'
+  # STR3 = '"str3"'
   # VAR1 = "$var1"
   # VAR2 = "$var2"
   # VAR3 = "$var3"
