@@ -8,6 +8,7 @@ require "pp"
 $LOAD_PATH.unshift File.dirname(__FILE__)
 require "root_entity"
 require "entity"
+require "attributes"
 
 # This class implements the data space in a flat way such that the entities
 # and all their attributes are stored as key/value pairs in the database.
@@ -335,13 +336,14 @@ class DataSpace
   # === Parameters
   # * _id_:: identifier of the attributes' entity (or * to make the mapping
   #       :: generic)
-  # * _attrib_:: array with the existing attribute name/value pairs
-  # * _mapping_:: array with the mapping attribute name/value pairs
+  # * _attrib_:: +Attributes+ with the existing attribute name/value pairs
+  # * _mapping_:: +Attributes+ with the mapping attribute name/value pairs
   #
   # === Throws
-  # * _ArgumentError_:: if _attrib_ or _mapping_ is not an array of name/value
-  #                  :: pairs or if one array is included in the other
-  # * _NoEntityError_:: if the mapping is specific and the entity does not exist
+  # * _ArgumentError_:: if _attrib_ or _mapping_ is not an instance of
+  #                  :: +Attributes+ or if one array is included in the other
+  # * _NoEntityError_:: if the mapping is specific and the entity does not
+  #                  :: exist
   # * _NoAttributeError_:: if an attribute does not exist
   # * _MappingExistsError_:: if the mapping already exists
   #
@@ -353,25 +355,16 @@ class DataSpace
       raise NoEntityError.new id
     end
 
-    unless attrib.instance_of?(Array) && mapping.instance_of?(Array)
-      raise ArgumentError, "attrib and mapping must be arrays"
+    unless attrib.instance_of?(Attributes) && mapping.instance_of?(Attributes)
+      raise ArgumentError, "attrib and mapping must instances of Attributes"
     end
     
-    [attrib, mapping].each { |array|
-      array.each { |pair|
-        unless pair.instance_of?(Array) && pair.length == 2
-          raise ArgumentError, "attrib and mapping must be arrays of name/value pair arrays"
-        end
-      }
-    }
-
-    intersec = attrib & mapping
-    if intersec == attrib || intersec == mapping
+    if attrib.contains?(mapping) || mapping.contains?(attrib)
       raise ArgumentError, "one attribute set is included in the other, this mapping makes no sense"
     end
     
     unless id == Entity::ANY_VALUE
-      attrib.each { |pair|
+      attrib.pairs.each { |pair|
         unless db_value_contains? @store, id_dbs + DB_SEP + s_to_dbs(pair[0]),
                                   s_to_dbs(pair[1])
           raise NoAttributeError.new id, pair[0], pair[1]
@@ -379,7 +372,8 @@ class DataSpace
       }
     end
     
-    attrib_dbs, mapping_dbs = array_to_dbs(attrib), array_to_dbs(mapping)
+    attrib_dbs, mapping_dbs = array_to_dbs(attrib.pairs),
+                              array_to_dbs(mapping.pairs)
 
     maps_key = id_dbs + DB_SEP + mapping_dbs
     if db_value_contains?(@maps, maps_key, attrib_dbs)
@@ -392,14 +386,16 @@ class DataSpace
   #
   # === Parameters
   # * _id_:: identifier of the attributes' entity (or * for a generic mapping)
-  # * _attrib_:: array with the existing attribute name/value pairs (or * to
-  #           :: remove all mappings with for _id_)
-  # * _mapping_:: array with the mapping attribute name/value pairs (or * to
-  #            :: remove all mappings for _attrib_)
+  # * _attrib_:: +Attributes+ with the existing attribute name/value pairs (or
+  #           :: to remove all mappings with for _id_)
+  # * _mapping_:: +Attributes+ with the mapping attribute name/value pairs (or
+  #            :: to remove all mappings for _attrib_)
   #
   # === Throws
-  # * _ArgumentError_:: if _attrib_ or _mapping_ is neither hash nor *
-  # * _NoEntityError_:: if the mappping is specific and the entity does not exist
+  # * _ArgumentError_:: if _attrib_ or _mapping_ is neither instance of
+  #                  :: +Attributes+ nor *
+  # * _NoEntityError_:: if the mappping is specific and the entity does not
+  #                  :: exist
   # * _NoMappingError_:: if the mapping does not exist
   #
   def delete_attribute_mapping(id, attrib, mapping)
@@ -410,23 +406,15 @@ class DataSpace
       raise NoEntityError.new id
     end
 
-    unless (attrib.instance_of?(Array) || attrib == Entity::ANY_VALUE) &&
-           (mapping.instance_of?(Array) || mapping == Entity::ANY_VALUE)
-      raise ArgumentError, "attrib and mapping must be either array or *"
+    unless (attrib.instance_of?(Attributes) || attrib == Entity::ANY_VALUE) &&
+           (mapping.instance_of?(Attributes) || mapping == Entity::ANY_VALUE)
+      raise ArgumentError, "attrib and mapping must be either instance of Attributes or *"
     end
-
-    [attrib, mapping].each { |array|
-      next unless array.instance_of?(Array)
-      array.each { |pair|
-        unless pair.length == 2
-          raise ArgumentError, "attrib and mapping must be arrays of name/value pairs"
-        end
-      }
-    }
     
-    if attrib.instance_of?(Array) && mapping.instance_of?(Array)
+    if attrib.instance_of?(Attributes) && mapping.instance_of?(Attributes)
       
-      attrib_dbs, mapping_dbs = array_to_dbs(attrib), array_to_dbs(mapping)
+      attrib_dbs, mapping_dbs = array_to_dbs(attrib.pairs),
+                                array_to_dbs(mapping.pairs)
       unless db_remove_from_value(@maps, id_dbs + DB_SEP + mapping_dbs,
                                   attrib_dbs)
         raise NoMappingError.new id, attrib, mapping
@@ -434,13 +422,14 @@ class DataSpace
       
     else
       
-      attrib_dbs = attrib.instance_of?(Array) ? array_to_dbs(attrib) : nil
+      attrib_dbs = attrib.instance_of?(Attributes) ?
+                   array_to_dbs(attrib.pairs) : nil
       removed_mapping = false
       maps_key_regex = /^#{Regexp.escape(id_dbs) + @@DB_SEP_ESC}/
       # loop over +@maps+
       db_each(@maps) { |maps_key, maps_value|
         next unless maps_key =~ maps_key_regex
-        if attrib.instance_of?(Array)
+        if attrib.instance_of?(Attributes)
           removed_mapping = true if db_remove_from_value(@maps, maps_key,
                                                          attrib_dbs)
         else
@@ -585,7 +574,7 @@ class DataSpace
 
     def initialize(id, attrib, mapping)
       @id, @attrib, @mapping = id, attrib, mapping
-      super "'#{PairArrayUtil.pair_array_to_s(@attrib)}' are already mapped to '#{PairArrayUtil.pair_array_to_s(@mapping)}' for entity '#{@id}'."
+      super "'#{@attrib}' are already mapped to '#{@mapping}' for entity '#{@id}'."
     end
 
     attr_reader :id, :attrib, :mapping
@@ -615,11 +604,7 @@ class DataSpace
 
     def initialize(id, attrib, mapping)
       @id, @attrib, @mapping = id, attrib, mapping
-      attrib_s = @attrib.instance_of?(Array) ?
-                   PairArrayUtil.pair_array_to_s(@attrib) : @attrib
-      mapping_s = @mapping.instance_of?(Array) ?
-                    PairArrayUtil.pair_array_to_s(@mapping) : @mapping
-      super "'#{attrib_s}' are not mapped to '#{mapping_s}' for entity '#{@id}'."
+      super "'#{@attrib}' are not mapped to '#{@mapping}' for entity '#{@id}'."
     end
 
     attr_reader :id, :attrib, :mapping
@@ -1400,26 +1385,5 @@ class DataSpace
         yield result
       }
     }
-  end
-end
-
-class PairArrayUtil
-  
-  # Converts an array of name/value pairs to a human readable string.
-  #
-  # === Parameters
-  # * _array_
-  #
-  def PairArrayUtil.pair_array_to_s(array)
-    s = ""
-    array.each { |item|
-      s += "["
-      item.each { |sub|
-        s += "#{sub[0]} => #{sub[1]}, "
-      }
-      s.chomp(", ")
-      s += "]"
-    }
-    s
   end
 end

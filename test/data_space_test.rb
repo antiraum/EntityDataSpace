@@ -261,8 +261,8 @@ class DataSpaceTest < Test::Unit::TestCase
       # test ok specific
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
-        [[ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
+        Attributes.new([TestVars::KEY3, TestVars::STR2])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -271,10 +271,10 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY2, TestVars::STR2 ]],
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY2, TestVars::STR2]),
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY3, TestVars::STR2])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -286,8 +286,8 @@ class DataSpaceTest < Test::Unit::TestCase
       # test ok generic
       @ds.insert_attribute_mapping(
         Entity::ANY_VALUE,
-        [[ TestVars::KEY1, TestVars::STR2 ]],
-        [[ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2]),
+        Attributes.new([TestVars::KEY3, TestVars::STR1])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -296,10 +296,10 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         Entity::ANY_VALUE,
-        [[ TestVars::KEY1, TestVars::STR2 ],
-         [ TestVars::KEY2, TestVars::STR1 ]],
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2],
+                       [TestVars::KEY2, TestVars::STR1]),
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+         [ TestVars::KEY3, TestVars::STR1])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -312,7 +312,7 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
           nil
         )
       }
@@ -320,44 +320,37 @@ class DataSpaceTest < Test::Unit::TestCase
         @ds.insert_attribute_mapping(
           TestVars::ID1,
           nil,
-          [[ TestVars::KEY1, TestVars::STR1 ]]
-        )
-      }
-      assert_raise(ArgumentError) {
-        @ds.insert_attribute_mapping(
-          TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [ TestVars::KEY1, TestVars::STR2 ]
+          Attributes.new([TestVars::KEY1, TestVars::STR1])
         )
       }
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR2 },
-          [[ TestVars::KEY1, TestVars::STR1 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1])
         )
       }
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [[ TestVars::KEY1, TestVars::STR1 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          Attributes.new([TestVars::KEY1, TestVars::STR1])
         )
       }
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY2, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY2, TestVars::STR2])
         )
       }
       assert_raise(ArgumentError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY2, TestVars::STR2 ]],
-          [[ TestVars::KEY1, TestVars::STR1 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY2, TestVars::STR2]),
+          Attributes.new([TestVars::KEY1, TestVars::STR1])
         )
       }
     
@@ -365,8 +358,8 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(DataSpace::NoEntityError) {
         @ds.insert_attribute_mapping(
           TestVars::ID2,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [[ TestVars::KEY1, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          Attributes.new([TestVars::KEY1, TestVars::STR2])
         )
       }
 
@@ -374,17 +367,17 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(DataSpace::NoAttributeError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY3, TestVars::STR1 ]],
-          [[ TestVars::KEY1, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY3, TestVars::STR1]),
+          Attributes.new([TestVars::KEY1, TestVars::STR2])
         )
       }
       assert_raise(DataSpace::NoAttributeError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY2, TestVars::ID1 ]],
-          [[ TestVars::KEY1, TestVars::STR2 ],
-           [ TestVars::KEY2, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY2, TestVars::ID1]),
+          Attributes.new([TestVars::KEY1, TestVars::STR2],
+                         [TestVars::KEY2, TestVars::STR2])
         )
       }
     
@@ -392,17 +385,17 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(DataSpace::MappingExistsError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [[ TestVars::KEY3, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          Attributes.new([TestVars::KEY3, TestVars::STR2])
         )
       }
       assert_raise(DataSpace::MappingExistsError) {
         @ds.insert_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY2, TestVars::STR2 ]],
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY3, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY2, TestVars::STR2]),
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY3, TestVars::STR2])
         )
       }
     }
@@ -420,8 +413,8 @@ class DataSpaceTest < Test::Unit::TestCase
       # test ok specific
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
-        [[ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
+        Attributes.new([TestVars::KEY3, TestVars::STR2])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -430,10 +423,10 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY2, TestVars::STR2 ]],
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY2, TestVars::STR2]),
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY3, TestVars::STR2])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -443,8 +436,8 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.delete_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
-        [[ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
+        Attributes.new([TestVars::KEY3, TestVars::STR2])
       )
       assert_equal [],
                    @ds.search(
@@ -453,10 +446,10 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.delete_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY2, TestVars::STR2 ]],
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY2, TestVars::STR2]),
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY3, TestVars::STR2])
       )
       assert_equal [],
                    @ds.search(
@@ -468,8 +461,8 @@ class DataSpaceTest < Test::Unit::TestCase
       # test ok generic
       @ds.insert_attribute_mapping(
         Entity::ANY_VALUE,
-        [[ TestVars::KEY1, TestVars::STR2 ]],
-        [[ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2]),
+        Attributes.new([TestVars::KEY3, TestVars::STR1])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -478,10 +471,10 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         Entity::ANY_VALUE,
-        [[ TestVars::KEY1, TestVars::STR2 ],
-         [ TestVars::KEY2, TestVars::STR1 ]],
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2],
+                       [TestVars::KEY2, TestVars::STR1]),
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY3, TestVars::STR1])
       )
       assert_equal [ TestVars::ID1 ],
                    @ds.search(
@@ -491,8 +484,8 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.delete_attribute_mapping(
         Entity::ANY_VALUE,
-        [[ TestVars::KEY1, TestVars::STR2 ]],
-        [[ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2]),
+        Attributes.new([TestVars::KEY3, TestVars::STR1])
       )
       assert_equal [],
                    @ds.search(
@@ -501,10 +494,10 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.delete_attribute_mapping(
         Entity::ANY_VALUE,
-        [[ TestVars::KEY1, TestVars::STR2 ],
-         [ TestVars::KEY2, TestVars::STR1 ]],
-        [[ TestVars::KEY1, TestVars::STR1 ],
-         [ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2],
+                       [TestVars::KEY2, TestVars::STR1]),
+        Attributes.new([TestVars::KEY1, TestVars::STR1],
+                       [TestVars::KEY3, TestVars::STR1])
       )
       assert_equal [],
                    @ds.search(
@@ -516,23 +509,23 @@ class DataSpaceTest < Test::Unit::TestCase
       # test ok with wildcard
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
-        [[ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
+        Attributes.new([TestVars::KEY3, TestVars::STR2])
       )
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
-        [[ TestVars::KEY3, TestVars::STR2 ],
-         [ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
+        Attributes.new([TestVars::KEY3, TestVars::STR2],
+                       [TestVars::KEY3, TestVars::STR1])
       )
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR2 ]],
-        [[ TestVars::KEY3, TestVars::STR1 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR2]),
+        Attributes.new([TestVars::KEY3, TestVars::STR1])
       )
       @ds.delete_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
         "*"
       )
       assert_equal [],
@@ -553,8 +546,8 @@ class DataSpaceTest < Test::Unit::TestCase
                      ]), :use_mappings => true)
       @ds.insert_attribute_mapping(
         TestVars::ID1,
-        [[ TestVars::KEY1, TestVars::STR1 ]],
-        [[ TestVars::KEY3, TestVars::STR2 ]]
+        Attributes.new([TestVars::KEY1, TestVars::STR1]),
+        Attributes.new([TestVars::KEY3, TestVars::STR2])
       )
       @ds.delete_attribute_mapping(TestVars::ID1, "*", "*")
       assert_equal [],
@@ -572,7 +565,7 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(ArgumentError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
           nil
         )
       }
@@ -580,21 +573,21 @@ class DataSpaceTest < Test::Unit::TestCase
         @ds.delete_attribute_mapping(
           TestVars::ID1,
           nil,
-          [[ TestVars::KEY1, TestVars::STR1 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1])
         )
       }
       assert_raise(ArgumentError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [ TestVars::KEY1, TestVars::STR2 ]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          [TestVars::KEY1, TestVars::STR2]
         )
       }
       assert_raise(ArgumentError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
           { TestVars::KEY1 => TestVars::STR2 },
-          [[ TestVars::KEY1, TestVars::STR1 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1])
         )
       }
       
@@ -602,8 +595,8 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(DataSpace::NoEntityError) {
         @ds.delete_attribute_mapping(
           TestVars::ID2,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [[ TestVars::KEY3, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          Attributes.new([TestVars::KEY3, TestVars::STR2])
         )
       }
     
@@ -611,23 +604,23 @@ class DataSpaceTest < Test::Unit::TestCase
       assert_raise(DataSpace::NoMappingError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
-          [[ TestVars::KEY3, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
+          Attributes.new([TestVars::KEY3, TestVars::STR2])
         )
       }
       assert_raise(DataSpace::NoMappingError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY2, TestVars::STR2 ]],
-          [[ TestVars::KEY1, TestVars::STR1 ],
-           [ TestVars::KEY3, TestVars::STR2 ]]
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY2, TestVars::STR2]),
+          Attributes.new([TestVars::KEY1, TestVars::STR1],
+                         [TestVars::KEY3, TestVars::STR2])
         )
       }
       assert_raise(DataSpace::NoMappingError) {
         @ds.delete_attribute_mapping(
           TestVars::ID1,
-          [[ TestVars::KEY1, TestVars::STR1 ]],
+          Attributes.new([TestVars::KEY1, TestVars::STR1]),
           "*"
         )
       }
@@ -814,10 +807,12 @@ class DataSpaceTest < Test::Unit::TestCase
       # TODO test common variables among root children
       
       # check variables in mappings
-      @ds.insert_attribute_mapping TestVars::ID1,
-                                   [[ TestVars::KEY1, TestVars::ID1 ]],
-                                   [[ TestVars::KEY3, TestVars::ID2 ],
-                                    [ TestVars::KEY3, TestVars::ID3 ]]
+      @ds.insert_attribute_mapping(
+        TestVars::ID1,
+        Attributes.new([TestVars::KEY1, TestVars::ID1]),
+        Attributes.new([TestVars::KEY3, TestVars::ID2],
+                       [TestVars::KEY3, TestVars::ID3])
+      )
       # assert_equal [ TestVars::ID1 ],
       #              @ds.search(RootEntity.new(Entity::ANY_VALUE, [
       #                Entity.new(Entity::ANY_VALUE, TestVars::ID2),
@@ -828,10 +823,12 @@ class DataSpaceTest < Test::Unit::TestCase
       #                Entity.new(TestVars::VAR1, TestVars::ID2),
       #                Entity.new(TestVars::VAR1, TestVars::ID3)
       #              ]), :use_mappings => true)
-      @ds.insert_attribute_mapping TestVars::ID1,
-                                   [[ TestVars::KEY1, TestVars::ID1 ]],
-                                   [[ TestVars::KEY2, TestVars::ID2 ],
-                                    [ TestVars::KEY3, TestVars::ID1 ]]
+      @ds.insert_attribute_mapping(
+        TestVars::ID1,
+        Attributes.new([TestVars::KEY1, TestVars::ID1]),
+        Attributes.new([TestVars::KEY2, TestVars::ID2],
+                       [TestVars::KEY3, TestVars::ID1])
+      )
       # assert_equal [ TestVars::ID1 ],
       #              @ds.search(RootEntity.new(TestVars::VAR1, [
       #                Entity.new(TestVars::KEY2, TestVars::ID2),
