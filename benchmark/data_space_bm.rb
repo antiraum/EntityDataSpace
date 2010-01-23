@@ -1,4 +1,5 @@
-#!/usr/bin/env ruby -w
+#!/opt/local/bin/ruby1.9 -w
+#/usr/bin/env ruby -w
 
 require "benchmark"
 require "fileutils"
@@ -57,7 +58,7 @@ def get_test_var(type, num)
   end
 end
 
-SIZES = [25, 50, 100, 200]
+SIZES = [50, 100, 200, 400]
 
 MODES = {
   "1. Store Only" => {},
@@ -67,7 +68,7 @@ MODES = {
 
 BDB_PATH = File.join(File.dirname(__FILE__), "benchmark.bdb")
 
-NUM_STR_ATTRIBS = 5
+NUM_STR_ATTRIBS = 3
 
 d_query = Entity.new(BmVars::KEY1, Entity::ANY_VALUE);
 5.times {
@@ -181,8 +182,8 @@ SIZES.each { |num_nodes|
         (1..num_nodes).each { |n1|
           (1..num_nodes).each { |n2|
             id1, id2 = get_test_var("id", n1), get_test_var("id", n2)
+            ds.insert_attribute id1, BmVars::KEY1, id2
             if n2.odd?
-              ds.insert_attribute id1, BmVars::KEY1, id2
               begin
                 ds.insert_attribute_mapping(
                   Entity::ANY_VALUE,
@@ -191,7 +192,7 @@ SIZES.each { |num_nodes|
                 )
               rescue DataSpace::MappingExistsError => e
               end
-            elsif n1.odd?
+            elsif n1.odd?  
               ds.insert_attribute id1, BmVars::KEY2, id2
             end
           }
@@ -205,25 +206,26 @@ SIZES.each { |num_nodes|
                                   get_test_var("str", s2)
             }
           }
-        }
-        # add specific mappings
-        ds.insert_attribute_mapping(
-          BmVars::ID1,
-          Attributes.new([BmVars::KEY1, BmVars::STR1]),
-          Attributes.new(
-            [BmVars::KEY2 + "m", BmVars::STR2],
-            [BmVars::KEY3 + "m", BmVars::STR3]
+          next if n.odd?
+          # add specific mappings
+          ds.insert_attribute_mapping(
+            get_test_var("id", n),
+            Attributes.new([BmVars::KEY1, BmVars::STR1]),
+            Attributes.new(
+              [BmVars::KEY2 + "m", BmVars::STR2],
+              [BmVars::KEY3 + "m", BmVars::STR3]
+            )
           )
-        )
-        ds.insert_attribute_mapping(
-          BmVars::ID3,
-          Attributes.new(
-            [BmVars::KEY1, BmVars::STR1],
-            [BmVars::KEY2, BmVars::STR1],
-            [BmVars::KEY3, BmVars::STR1]
-          ),
-          Attributes.new([BmVars::KEY1 + "m", BmVars::STR1])
-        )
+          ds.insert_attribute_mapping(
+            get_test_var("id", n),
+            Attributes.new(
+              [BmVars::KEY1, BmVars::STR1],
+              [BmVars::KEY2, BmVars::STR1],
+              [BmVars::KEY3, BmVars::STR1]
+            ),
+            Attributes.new([BmVars::KEY1 + "m", BmVars::STR1])
+          )
+        }
       }
     }
     puts
@@ -244,7 +246,7 @@ SIZES.each { |num_nodes|
     
       TEST_QUERIES.each { |name, query|
         x.report(name) {
-          ds.search(query).map { |id| ds.get_entity id }
+          ds.search query
         }
       }
       
@@ -262,9 +264,7 @@ SIZES.each { |num_nodes|
     
         TEST_QUERIES.each { |name, query|
           x.report(name) {
-            ds.search(query, :use_mappings => true).map { |id|
-              ds.get_entity id
-            }
+            ds.search query, :use_mappings => true
           }
         }
       
@@ -280,9 +280,7 @@ SIZES.each { |num_nodes|
     
         MAPPING_QUERIES.each { |name, query|
           x.report(name) {
-            ds.search(query, :use_mappings => true).map { |id|
-              ds.get_entity id
-            }
+            ds.search query, :use_mappings => true
           }
         }
       
@@ -291,11 +289,14 @@ SIZES.each { |num_nodes|
       }
       puts "Total mapping queries: #{total_query_time}"
     end
+    puts
   
     # close data space
     ds.close
-    # system "ls -l \"#{BDB_PATH}\""
-    # system "ls -lh \"#{BDB_PATH}\""
+    system "du -s \"#{BDB_PATH}\""
+    system "du -sh \"#{BDB_PATH}\""
+    system "ls -l \"#{BDB_PATH}\""
+    system "ls -lh \"#{BDB_PATH}\""
     FileUtils::rm_r BDB_PATH
   
     puts
