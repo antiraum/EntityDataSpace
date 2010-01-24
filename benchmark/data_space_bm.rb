@@ -290,6 +290,9 @@ SIZES.each { |num_nodes|
     end
     puts
   
+    # print size
+    ds.print_size
+  
     # close data space
     ds.close
     system "du -s \"#{BDB_PATH}\""

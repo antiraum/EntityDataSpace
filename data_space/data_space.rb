@@ -193,8 +193,7 @@ class DataSpace
   #
   def clear
     
-    truncate_db @store
-    truncate_db @maps
+    [ @store, @maps ].each { |db| truncate_db db }
     
     return unless @use_idx
     
@@ -522,8 +521,10 @@ class DataSpace
   #
   def dump
     
-    dump_db "store", @store
-    dump_db "mappings", @maps
+    {
+      "store", @store,
+      "mappings", @maps
+    }.each { |name, db| dump_db name, db }
     
     return unless @use_idx
     
@@ -539,6 +540,35 @@ class DataSpace
       "value index" => @v_idx,
       "id index" => @id_idx
     }.each { |name, db| dump_db name, db }
+  end
+  
+  # Prints the size of all databases. For debugging only.
+  #
+  def print_size
+    
+    {
+      "store", @store,
+      "mappings", @maps
+    }.each { |name, db| db_print_size name, db }
+    
+    return unless @use_idx
+    
+    inv_index_total = 0
+    {
+      "index 1" => @idx1,
+      "index 2" => @idx2
+    }.each { |name, db| inv_index_total += db_print_size name, db }
+    puts "inverted indexes total: #{inv_index_total}"
+    
+    return unless @use_add_idx
+    
+    add_index_total = 0
+    {
+      "key index" => @k_idx,
+      "value index" => @v_idx,
+      "id index" => @id_idx
+    }.each { |name, db| add_index_total += db_print_size name, db }
+    puts "additional indexes total: #{add_index_total}"
   end
   
   class OpenDatabaseError < StandardError
@@ -697,6 +727,19 @@ class DataSpace
       k, v = dbc.get(nil, nil, Bdb::DB_NEXT)
     end
     dbc.close
+  end
+  
+  # Prints and returns the number of pairs in a database.
+  #
+  # === Parameters
+  # * _name_:: name to print as header
+  # * _db_:: +Bdb::Db+ object
+  #
+  def db_print_size(name, db)
+    size = 0
+    db_each(db) { |k, v| size += 1 }
+    puts "#{name}: #{size} pairs"
+    size
   end
 
   # Checks if the value of a pair in a database contains a dbs. The value can
