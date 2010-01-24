@@ -10,6 +10,7 @@
 
 class Entity
   
+  # this is the wildcard character for any attribute name or value
   ANY_VALUE = "*"
   
   attr_accessor :key, :value, :children
@@ -24,9 +25,9 @@ class Entity
   # "$").
   #
   # === Parameters
-  # * _key_:: attribute name (can be nil when root; * or $... in a query)
-  # * _value_:: attribute value (can be * or $... in a query)
-  # * _children_:: array of child +Entity+ objects
+  # _key_:: Attribute name (can be nil when root; * or $... in a query) [+String+]
+  # _value_:: Attribute value (can be * or $... in a query) [+String+]
+  # _children_:: Child +Entity+ objects [+Array+]
   #
   def initialize(key, value, children = [])
     @key, @value, @children = key, value, children
@@ -34,17 +35,17 @@ class Entity
   
   # Creates an +Entity+ object tree from a string in the following format:
   #
-  # * key:value(key:value, key:value(key:value, key:value))
+  # * key:value(name:value, name:value(name:value, name:value))
   #
-  # Parsing capabilities are limited. Currently the key and values cannot 
+  # Parsing capabilities are limited. Currently the names and values cannot 
   # contain "(", ")", ":", nor ",".
   #
   # === Parameters
-  # * _str_:: string to parse
-  # * _verb_:: print debug output
+  # _str_:: string to parse [+String+]
+  # _verb_:: print debug output [+Boolean+]
   #
   # === Returns
-  # * +Entity+ object tree
+  # +Entity+ object tree
   #
   def Entity.from_s(str, verb = false)
     

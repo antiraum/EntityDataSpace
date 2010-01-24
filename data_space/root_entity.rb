@@ -4,7 +4,7 @@ $LOAD_PATH.unshift File.dirname(__FILE__)
 require "entity"
 
 # This class implements the root of the query tree used for searching the
-# +DataSpace+. It is also used to represent the search results.
+# +DataSpace+. It is also used for the root of an entity representation.
 #
 # Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
 #
@@ -17,8 +17,8 @@ class RootEntity < Entity
   # "$").
   #
   # === Parameters
-  # * _id_:: identifier of the root entity (can be * or $... in a query)
-  # * _children_:: array of child +Entity+ objects
+  # _id_:: Identifier of the root entity (can be * or $... in a query) [+String+]
+  # _children_:: Child +Entity+ objects [+Array+]
   #
   def initialize(id, children = [])
     super nil, id, children

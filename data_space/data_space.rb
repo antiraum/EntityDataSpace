@@ -13,39 +13,40 @@ require "attributes"
 # This class implements the data space in a flat way such that the entities
 # and all their attributes are stored as key/value pairs in the database.
 #
-# A entity is saved in this way:
+# An entity is saved in this way:
 # * entity_id -> nil
 # * entity_id///attribute1_key -> attribute1_value1///attribute1_value2///...
 # * ...
 #
-# If the +use_idx+ parameter is set to true, the data space uses two inverted
+# If the +:use_indexes+ argument is passed, the data space uses two inverted
 # indexes with the following structure:
 # * first inverted index:
-#   * attrib_value///attrib_key -> entity_id1///entity_id2///...
-#   * ...
+# * attrib_value///attrib_key -> entity_id1///entity_id2///...
+# * ...
 # * second inverted index:
-#   * entity_id///attrib_value -> attrib_key1///attrib_key2///...
-#   * ...
+# * entity_id///attrib_value -> attrib_key1///attrib_key2///...
+# * ...
 #
-# If the +use_add_idx+ parameter is set to true, these additional indexes are
-# used:
+# If the +:use_all_indexes+ argument is passed, these additional indexes are
+# also used:
 # * key index:
-#   * attrib_key -> entity_id1///entity_id2///...
-#   * ...
+# * attrib_key -> entity_id1///entity_id2///...
+# * ...
 # * value index:
-#   * attrib_value -> entity_id1///entity_id2///...
-#   * ...
+# * attrib_value -> entity_id1///entity_id2///...
+# * ...
 # * id index:
-#   * entity_id -> attrib_key1///attrib_key2///...
-#   * ...
+# * entity_id -> attrib_key1///attrib_key2///...
+# * ...
 #
-# The data space supports mappings for attributes. One or a set of attributes
-# for an entity can be mapped to a synonym attribute or set of attributes of
-# the same entity. The mappings can be used by the search method.
+# The data space supports generic and entity specific mappings for attributes.
+# A set of existing attributes can be mapped to a synonym set of attributes
+# for all entities or for a specific entity. The mappings can then be used by
+# the #search method.
 #
 # The mappings are saved in this way:
 # * entity_id///serialized_original_attrib_set ->
-#   serialized_synonym_attrib_set1///serialized_synonym_attrib_set2///...
+# serialized_mapping_attrib_set1///serialized_mapping_attrib_set2///...
 # * ...
 #
 # Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
@@ -61,15 +62,12 @@ class DataSpace
   # occurances of +DB_SEP+ are replaced by this string
   DB_INVALID = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
   
-  # Generates a new +DataSpace+ instance. Opens the Berkeley DB file and its
-  # databases.
+  # Generates a new +DataSpace+ instance. Opens the Berkeley DB database.
+  # Creates the database if it doesn't exist.
   #
   # === Parameters
-  # * _bdb_path_:: directory containing the Berkeley DB files to use
-  #             :: (is created if doesn't exist)
-  # * _options_:: options hash (available keys: _:use_indexes_ (use inverted
-  #            :: indexes) and _:use_all_indexes_ (use inverted indexes and
-  #            :: additional indexes))
+  # _bdb_path_:: Directory containing the Berkeley DB files to use (is created if doesn't exist) [+String+]
+  # _options_:: Options (available options: <em>:use_indexes</em> (use inverted indexes) and <em>:use_all_indexes</em> (use inverted indexes and additional indexes)) [+Hash+]
   #
   def initialize(bdb_path, options = {})
     
@@ -113,10 +111,10 @@ class DataSpace
   # Adds a new entity.
   #
   # === Parameters
-  # * _id_:: identifier of the entity
+  # _id_:: Identifier of the entity [+String+]
   #
   # === Throws
-  # * _EntityExistsError_
+  # _EntityExistsError_:: If an entity with this id already exists
   #
   def insert_entity(id)
     
@@ -133,10 +131,10 @@ class DataSpace
   # of other entities that have the entity as value.
   #
   # === Parameters
-  # * _id_:: identifier of the entity
+  # _id_:: Identifier of the entity [+String+]
   #
   # === Throws
-  # * _NoEntityError_
+  # _NoEntityError_:: If the entity doesn't exist
   #
   def delete_entity(id)
     
@@ -211,15 +209,13 @@ class DataSpace
   # identifier. Entity identifiers (ids) are strings (without quotes).
   #
   # === Parameters
-  # * _id_:: identifier of the entity
-  # * _key_:: name of the attribute
-  # * _value_:: value of the attribute
+  # _id_:: Identifier of the entity [+String+]
+  # _key_:: Name of the attribute [+String+]
+  # _value_:: Value of the attribute [+String+]
   #
   # === Throws
-  # * _NoEntityError_:: if the entity, the attribute is for, or the entity,
-  #                  :: the attribute referes to, does not exist
-  # * _AttributeExistsError_:: if the entity already has an attribute with
-  #                         :: this name and value
+  # _NoEntityError_:: If the entity, the attribute is for, or the entity, the attribute referes to, does not exist
+  # _AttributeExistsError_:: If the entity already has an attribute with this name and value
   #
   def insert_attribute(id, key, value)
     
@@ -249,13 +245,13 @@ class DataSpace
   # from all entity specific mappings containing it.
   #
   # === Parameters
-  # * _id_:: identifier of the entity
-  # * _key_:: name of the attribute (* to remove all attributes for _id_)
-  # * _value_:: value of the attribute (* to remove all attributes with _key_)
+  # _id_:: Identifier of the entity [+String+]
+  # _key_:: Name of the attribute (* to remove all attributes for _id_) [+String+]
+  # _value_:: Value of the attribute (* to remove all attributes with _key_) [+String+]
   #
   # === Throws
-  # * _NoEntityError_
-  # * _NoAttributeError_
+  # _NoEntityError_:: If the entity doesn't exist
+  # _NoAttributeError_:: If the attribute doesn't exist
   #
   def delete_attribute(id, key, value)
     
@@ -333,18 +329,15 @@ class DataSpace
   # can be created either for a specific entity or generic.
   #
   # === Parameters
-  # * _id_:: identifier of the attributes' entity (or * to make the mapping
-  #       :: generic)
-  # * _attrib_:: +Attributes+ with the existing attribute name/value pairs
-  # * _mapping_:: +Attributes+ with the mapping attribute name/value pairs
+  # _id_:: Identifier of the attributes' entity (or * to make the mapping generic) [+String+]
+  # _attrib_:: Existing attribute name/value pairs [+Attributes+]
+  # _mapping_:: Mapping attribute name/value pairs [+Attributes+]
   #
   # === Throws
-  # * _ArgumentError_:: if _attrib_ or _mapping_ is not an instance of
-  #                  :: +Attributes+ or if one array is included in the other
-  # * _NoEntityError_:: if the mapping is specific and the entity does not
-  #                  :: exist
-  # * _NoAttributeError_:: if an attribute does not exist
-  # * _MappingExistsError_:: if the mapping already exists
+  # _ArgumentError_:: If _attrib_ or _mapping_ is not an instance of +Attributes+ or if one array is included in the other
+  # _NoEntityError_:: If the mapping is specific and the entity does not exist
+  # _NoAttributeError_:: If an attribute does not exist
+  # _MappingExistsError_:: If the mapping already exists
   #
   def insert_attribute_mapping(id, attrib, mapping)
 
@@ -384,18 +377,14 @@ class DataSpace
   # Deletes an existing generic or entity specific mapping.
   #
   # === Parameters
-  # * _id_:: identifier of the attributes' entity (or * for a generic mapping)
-  # * _attrib_:: +Attributes+ with the existing attribute name/value pairs (or
-  #           :: to remove all mappings with for _id_)
-  # * _mapping_:: +Attributes+ with the mapping attribute name/value pairs (or
-  #            :: to remove all mappings for _attrib_)
+  # _id_:: Identifier of the attributes' entity (or * for a generic mapping) [+String+]
+  # _attrib_:: Existing attribute name/value pairs (or to remove all mappings with for _id_) [+Attributes+]
+  # _mapping_:: Mapping attribute name/value pairs (or to remove all mappings for _attrib_) [+Attributes+]
   #
   # === Throws
-  # * _ArgumentError_:: if _attrib_ or _mapping_ is neither instance of
-  #                  :: +Attributes+ nor *
-  # * _NoEntityError_:: if the mappping is specific and the entity does not
-  #                  :: exist
-  # * _NoMappingError_:: if the mapping does not exist
+  # _ArgumentError_:: If _attrib_ or _mapping_ is neither instance of +Attributes+ nor *
+  # _NoEntityError_:: If the mappping is specific and the entity does not exist
+  # _NoMappingError_:: If the mapping does not exist
   #
   def delete_attribute_mapping(id, attrib, mapping)
 
@@ -447,12 +436,11 @@ class DataSpace
   # of matching entity ids as result.
   #
   # === Parameters
-  # * _query_:: +RootEntity+ object
-  # * _options_:: options hash (available keys: _:use_mappings_ and _:verbose_
-  #            :: (print debug output))
+  # _query_:: [+RootEntity+] object
+  # _options_:: Options (available options: <em>:use_mappings</em> and <em>:verbose</em> (print debug output)) [+Hash+]
   #
   # === Returns
-  # * Array of entity ids.
+  # Array of entity ids
   #
   def search(query, options = {})
     
@@ -500,10 +488,10 @@ class DataSpace
   # Retrieves the +Entity+ object tree for an entity id.
   #
   # === Parameters
-  # * _id_:: entity id
+  # _id_:: Entity id [+String+]
   #
   # === Returns
-  # * +RootEntity+ object
+  # +RootEntity+ object
   #
   def get_entity(id)
     
@@ -517,7 +505,7 @@ class DataSpace
     build_entity nil, id, id_dbs
   end
   
-  # Prints the content of all databases. For debugging only.
+  # Prints the content of all databases. For debugging purposes.
   #
   def dump
     
@@ -542,7 +530,7 @@ class DataSpace
     }.each { |name, db| dump_db name, db }
   end
   
-  # Prints the size of all databases. For debugging only.
+  # Prints the size of all databases. For debugging purposes.
   #
   def print_size
     
@@ -654,14 +642,14 @@ class DataSpace
   # Opens a BDB database inside a directory.
   #
   # === Parameters
-  # * _dir_path_:: directory containing the Berkeley DB file
-  # * _bdb_name_:: base name of the Berkeley DB file
+  # _dir_path_:: Directory containing the Berkeley DB file [+String+]
+  # _bdb_name_:: Base name of the Berkeley DB file [+String+]
   #
   # === Throws
-  # * _OpenDatabaseError_
+  # _OpenDatabaseError_:: If the database couldn't be open
   #
   # === Returns
-  # * +Bdb::Db+ object
+  # +Bdb::Db+ object
   #
   def open_db(dir_path, bdb_name)
     bdb_path = File.join(dir_path, bdb_name + ".bdb")
@@ -676,7 +664,7 @@ class DataSpace
   # Closes a +Bdb::Db+ database.
   #
   # === Parameters
-  # * _db_:: +Bdb::Db+ object
+  # _db_:: [+Bdb::Db+] object
   #
   def close_db(db)
     db.close 0
@@ -685,7 +673,7 @@ class DataSpace
   # Truncates a +Bdb::Db+ database.
   #
   # === Parameters
-  # * _db_:: +Bdb::Db+ object
+  # _db_:: [+Bdb::Db+] object
   #
   def truncate_db(db)
     db.truncate nil
@@ -694,8 +682,8 @@ class DataSpace
   # Prints the content of a database.
   #
   # === Parameters
-  # * _name_:: name to print as header
-  # * _db_:: +Bdb::Db+ object
+  # _name_:: Name to print as header [+String+]
+  # _db_:: [+Bdb::Db+] object
   #
   def dump_db(name, db)
     puts "\n#{name}"
@@ -706,8 +694,8 @@ class DataSpace
   # Removes a pair from a database.
   #
   # === Parameters
-  # * _db_:: database
-  # * _key_dbs_:: key of the pair
+  # _db_:: [+Bdb::Db+] object
+  # _key_dbs_:: Key of the pair [+String+]
   #
   def db_del(db, key_dbs)
     db.del(nil, key_dbs, 0)
@@ -717,7 +705,7 @@ class DataSpace
   # break out of the loop.
   #
   # === Parameters
-  # * _db_:: database
+  # _db_:: [+Bdb::Db+] object
   #
   def db_each(db)
     dbc = db.cursor(nil, 0)
@@ -732,8 +720,8 @@ class DataSpace
   # Prints and returns the number of pairs in a database.
   #
   # === Parameters
-  # * _name_:: name to print as header
-  # * _db_:: +Bdb::Db+ object
+  # _name_:: Name to print as header [+String+]
+  # _db_:: [+Bdb::Db+] object
   #
   def db_print_size(name, db)
     size = 0
@@ -746,12 +734,12 @@ class DataSpace
   # be the dbs or the dbs can be part of the value separated by +DB_SEP+.
   #
   # === Parameters
-  # * _db_:: database
-  # * _key_dbs_:: key of the pair
-  # * _dbs_:: dbs to look for in the value
+  # _db_:: [+Bdb::Db+] object
+  # _key_dbs_:: Key of the pair [+String+]
+  # _dbs_:: Dbs to look for in the value [+String+]
   #
   # === Returns
-  # * +true+ if dbs is in value, or +false+ if not
+  # +true+ if dbs is in value, or +false+ if not
   #
   def db_value_contains?(db, key_dbs, dbs)
     db[key_dbs] =~ build_value_grep_regex(dbs)
@@ -761,10 +749,10 @@ class DataSpace
   # +DB_SEP+.
   #
   # === Parameters
-  # * _dbs_:: dbs to look for in the value
+  # _dbs_:: Dbs to look for in the value [+String+]
   #
   # === Returns
-  # * +Regexpr+
+  # +Regexpr+
   #
   def build_value_grep_regex(dbs)
     /(^ | #{@@DB_SEP_ESC})
@@ -777,9 +765,9 @@ class DataSpace
   # by +DB_SEP+).
   #
   # === Parameters
-  # * _db_:: database
-  # * _key_dbs_:: key of the pair
-  # * _dbs_:: dbs to add to the value
+  # _db_:: [+Bdb::Db+] object
+  # _key_dbs_:: Key of the pair [+String+]
+  # _dbs_:: Dbs to add to the value [+String+]
   #
   def db_add_to_value(db, key_dbs, dbs)
     return if db_value_contains? db, key_dbs, dbs
@@ -791,12 +779,12 @@ class DataSpace
   # separated by +DB_SEP+, the dbs is removed from the value.
   #
   # === Parameters
-  # * _db_:: database
-  # * _key_dbs_:: key of the pair
-  # * _dbs_:: dbs to remove from the value
+  # _db_:: [+Bdb::Db+] object
+  # _key_dbs_:: Key of the pair [+String+]
+  # _dbs_:: Dbs to remove from the value [+String+]
   #
   # === Returns
-  # * +true+ if removed, or +false+ if pair doesn't exist or dbs not in value
+  # +true+ if removed, or +false+ if pair doesn't exist or dbs not in value
   #
   def db_remove_from_value(db, key_dbs, dbs)
     return false unless value_dbs = db[key_dbs]
@@ -820,10 +808,10 @@ class DataSpace
   # +DB_SEP+.
   #
   # === Parameters
-  # * _s_:: string
+  # _s_:: [+String+]
   #
   # === Throws
-  # * _ArgumentError_:: if _s_ contains an occurance of DB_INVALID
+  # _ArgumentError_:: If _s_ contains an occurance of DB_INVALID
   #
   def s_to_dbs(s)
     
@@ -840,10 +828,10 @@ class DataSpace
     s.gsub @@DB_SEP_REGEX, DB_INVALID
   end
   
-  # Reverts the replacements done by +s_to_dbs+.
+  # Reverts the replacements done by #+s_to_dbs+.
   #
   # === Parameters
-  # * _dbs_:: string modified by +s_to_dbs+
+  # _dbs_:: [+String+] modified by #+s_to_dbs+
   #
   def dbs_to_s(dbs)
     
@@ -858,21 +846,21 @@ class DataSpace
   # replacing occurences of +DB_SEP+ in the serialization.
   #
   # === Parameters
-  # * _array_:: array
+  # _array_:: [+Array+]
   #
   def array_to_dbs(array)
     
     unless array.instance_of?(Array)
-      raise ArgumentError, "array must be a array"
+      raise ArgumentError, "array must be an array"
     end
     
     s_to_dbs Marshal.dump(array.sort)
   end
   
-  # Reverts the modification done by +array_to_dbs+.
+  # Reverts the modification done by #+array_to_dbs+.
   #
   # === Parameters
-  # * _dbs_:: hash modified by +array_to_dbs+
+  # _dbs_:: Array modified by #+array_to_dbs+ [+String+]
   #
   def dbs_to_array(dbs)
     
@@ -886,10 +874,10 @@ class DataSpace
   # Removes all attributes of an entity.
   #
   # === Parameters
-  # * _id_dbs_:: entity identifier
+  # _id_dbs_:: Entity identifier [+String+]
   #
   # === Returns
-  # * +true+ if any attributes removed, +false+ if none
+  # +true+ if any attributes removed, +false+ if none
   #
   def remove_entity_attributes(id_dbs)
     if @use_add_idx
@@ -933,9 +921,9 @@ class DataSpace
   # Adds an attribute to the indexes.
   #
   # === Parameters
-  # * _id_dbs_:: entity identifier
-  # * _key_dbs_:: attribute name
-  # * _value_dbs_:: attribute value
+  # _id_dbs_:: Entity identifier [+String+]
+  # _key_dbs_:: Attribute name [+String+]
+  # _value_dbs_:: Attribute value [+String+]
   #
   def add_attribute_to_indexes(id_dbs, key_dbs, value_dbs)
     
@@ -954,9 +942,9 @@ class DataSpace
   # Removes an attribute from the indexes.
   #
   # === Parameters
-  # * _id_dbs_:: entity identifier
-  # * _key_dbs_:: attribute name
-  # * _value_dbs_:: attribute value
+  # _id_dbs_:: Entity identifier [+String+]
+  # _key_dbs_:: Attribute name [+String+]
+  # _value_dbs_:: Attribute value [+String+]
   #
   def remove_attribute_from_indexes(id_dbs, key_dbs, value_dbs)
 
@@ -975,9 +963,9 @@ class DataSpace
   # Removes an attribute from the mappings.
   #
   # === Parameters
-  # * _id_dbs_:: entity identifier
-  # * _key_:: attribute name
-  # * _value_:: attribute value
+  # _id_dbs_:: Entity identifier [+String+]
+  # _key_:: Attribute name [+String+]
+  # _value_:: Attribute value [+String+]
   #
   def remove_attribute_from_mappings(id_dbs, key, value)
     
@@ -1003,13 +991,13 @@ class DataSpace
   # as alternatives.
   #
   # === Parameters
-  # * _id_dbs_:: entity identifier
-  # * _conditions_:: array of +Entity+ objects (trees)
-  # * _vars_:: hash of query variables with their values
-  # * _verb_:: print debug output
+  # _id_dbs_:: Entity identifier [+String+]
+  # _conditions_:: +Entity+ objects (trees) [+Array+]
+  # _vars_:: Query variables with their values [+Hash+]
+  # _verb_:: Print debug output [+Boolean+]
   #
   # === Returns
-  # * +true+ if conditions fulfilled, +false+ if not
+  # +true+ if conditions fulfilled, +false+ if not
   #
   def entity_complies_with_mappings?(id_dbs, conditions, vars = {},
                                      verb = false)
@@ -1117,14 +1105,14 @@ class DataSpace
   # Runs recursively through the +Entity+ object trees.
   #
   # === Parameters
-  # * _id_dbs_:: entity identifier
-  # * _conditions_:: array of +Entity+ objects (trees)
-  # * _vars_:: hash of query variables with their values
-  # * _use_maps_:: recurse through +entity_complies_with_mappings?+
-  # * _verb_:: print debug output
+  # _id_dbs_:: Entity identifier [+String+]
+  # _conditions_:: +Entity+ objects (trees) [+Array+]
+  # _vars_:: Query variables with their values [+Hash+]
+  # _use_maps_:: Recurse through +entity_complies_with_mappings?+ [+Boolean+]
+  # _verb_:: Print debug output [+Boolean+]
   #
   # === Returns
-  # * +true+ if conditions fulfilled, +false+ if not
+  # +true+ if conditions fulfilled, +false+ if not
   #
   def entity_complies?(id_dbs, conditions, vars = {}, use_maps = false,
                        verb = false)
@@ -1399,9 +1387,9 @@ class DataSpace
   # to store the build entities.
   #
   # === Parameters
-  # * _key_:: key of the attribute whose value this entity is (nil if root)
-  # * _value_:: value of the entity (string or entity id)
-  # * _value_dbs_:: _value_ prepared by +s_to_dbs+
+  # _key_:: Key of the attribute whose value this entity is (nil if root) [+String+]
+  # _value_:: Value of the entity (string or entity id) [+String+]
+  # _value_dbs_:: _value_ prepared by +s_to_dbs+ [+String+]
   #
   def build_entity(key, value, value_dbs)
     
@@ -1444,7 +1432,7 @@ class DataSpace
   # elements in an array.
   #
   # === Parameters
-  # * _array_
+  # _array_:: [+Array+]
   #
   def get_partitionings(array)
     yield [] if array.empty?
