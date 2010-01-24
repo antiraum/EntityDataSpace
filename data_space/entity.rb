@@ -100,7 +100,9 @@ class Entity
     @key <=> other.key 
   end
   
+  #######
   private
+  #######
   
   @@COMMA = "VeRysTr4nGEsTr1Ngn0b0dYW1lLeVerW4NTt0Use4s1d0RKey"
   @@COMMA_REGEX = /#{Regexp.escape(@@COMMA)}/

@@ -629,7 +629,9 @@ class DataSpace
     attr_reader :id, :attrib, :mapping
   end
 
+  #######
   private
+  #######
   
   @@SHOW_DB_USE = true
     
