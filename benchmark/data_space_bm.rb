@@ -1,5 +1,4 @@
-#!/opt/local/bin/ruby1.9 -w
-#/usr/bin/env ruby -w
+#!/usr/bin/env ruby -w
 
 require "benchmark"
 require "fileutils"
@@ -13,7 +12,7 @@ require "entity"
 require "attributes"
 require "bm_vars"
 
-# This evaluates the data space implementation.
+# This scripts benchmarks the data space implementation.
 #
 # Author: Thomas Hess (139467) (mailto:thomas.hess@studenti.unitn.it)
 
@@ -58,7 +57,7 @@ def get_test_var(type, num)
   end
 end
 
-SIZES = [50, 100, 200, 400]
+SIZES = [50, 100, 200, 400, 800]
 
 MODES = {
   "1. Store Only" => {},
@@ -71,7 +70,7 @@ BDB_PATH = File.join(File.dirname(__FILE__), "benchmark.bdb")
 NUM_STR_ATTRIBS = 3
 
 d_query = Entity.new(BmVars::KEY1, Entity::ANY_VALUE);
-5.times {
+7.times {
   d_query = Entity.new(BmVars::KEY1, Entity::ANY_VALUE, [ d_query ])
 }
 d_query = RootEntity.new(BmVars::ID1, [ d_query ])
@@ -81,18 +80,18 @@ wd_query = []
     wd_query << Entity.new(get_test_var("key", s1), get_test_var("str", s2))
   }
 }
-wd_query = Entity.new(Entity::ANY_VALUE, BmVars::VAR1, wd_query)
-5.times {
+wd_query = Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, wd_query)
+7.times {
   wd_query = Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [ wd_query ])
 }
-wd_query = RootEntity.new(BmVars::VAR1, [ wd_query ])
+wd_query = RootEntity.new(Entity::ANY_VALUE, [ wd_query ])
 TEST_QUERIES = {
   "1. Specific entity lookups" =>
     RootEntity.new(BmVars::ID1, [
       Entity.new(BmVars::KEY1, BmVars::STR1),
       Entity.new(Entity::ANY_VALUE, BmVars::ID2, [
         Entity.new(BmVars::KEY1, BmVars::ID3, [
-          # Entity.new(BmVars::KEY3, BmVars::STR2)
+          Entity.new(BmVars::KEY3, BmVars::STR2)
         ]),
         Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
       ]) 
@@ -102,9 +101,9 @@ TEST_QUERIES = {
       Entity.new(BmVars::KEY1, BmVars::STR1),
       Entity.new(BmVars::KEY2, Entity::ANY_VALUE, [
         Entity.new(BmVars::KEY1, Entity::ANY_VALUE, [
-          # Entity.new(BmVars::KEY3, BmVars::STR2)
+          Entity.new(BmVars::KEY3, BmVars::STR2)
         ]),
-        # Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+        Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
       ]) 
     ]),
   "3. Extensive wildcard usage" =>
@@ -112,9 +111,9 @@ TEST_QUERIES = {
       Entity.new(Entity::ANY_VALUE, BmVars::STR1),
       Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
         Entity.new(Entity::ANY_VALUE, BmVars::ID3, [
-          # Entity.new(Entity::ANY_VALUE, BmVars::STR2)
+          Entity.new(Entity::ANY_VALUE, BmVars::STR2)
         ]),
-        # Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+        Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
       ]) 
     ]),
   "4. Variable usage" =>
@@ -128,10 +127,10 @@ TEST_QUERIES = {
       ]) 
     ]),
   "5. Wide query" =>
-    RootEntity.new(BmVars::VAR1, [
+    RootEntity.new(Entity::ANY_VALUE, [
       Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
-        Entity.new(Entity::ANY_VALUE, BmVars::VAR1, [
-          # Entity.new(Entity::ANY_VALUE, BmVars::VAR1)
+        Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
+          Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE)
         ])
       ]) 
     ]),
