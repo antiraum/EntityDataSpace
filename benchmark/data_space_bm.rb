@@ -57,11 +57,11 @@ def get_test_var(type, num)
   end
 end
 
-SIZES = [50, 100, 200, 400, 800]
+SIZES = [100, 200, 400, 800, 1600]
 
 MODES = {
   "1. Store Only" => {},
-  "2. Inverted Indexes" => {:use_indexes => true},
+  # "2. Inverted Indexes" => {:use_indexes => true},
   "3. All Indexes" => {:use_all_indexes => true}
 }.sort
 
@@ -69,87 +69,99 @@ BDB_PATH = File.join(File.dirname(__FILE__), "benchmark.bdb")
 
 NUM_STR_ATTRIBS = 3
 
-d_query = Entity.new(BmVars::KEY1, Entity::ANY_VALUE);
+all_str_query = []
+(1..NUM_STR_ATTRIBS).each { |s1|
+  (1..NUM_STR_ATTRIBS).each { |s2|
+    all_str_query << Entity.new(get_test_var("key", s1), get_test_var("str", s2))
+  }
+}
+d_query = Entity.new(BmVars::KEY1, Entity::ANY_VALUE, all_str_query);
 7.times {
   d_query = Entity.new(BmVars::KEY1, Entity::ANY_VALUE, [ d_query ])
 }
 d_query = RootEntity.new(BmVars::ID1, [ d_query ])
-wd_query = []
-(1..NUM_STR_ATTRIBS).each { |s1|
-  (1..NUM_STR_ATTRIBS).each { |s2|
-    wd_query << Entity.new(get_test_var("key", s1), get_test_var("str", s2))
-  }
-}
-wd_query = Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, wd_query)
+wd_query = Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, all_str_query)
 7.times {
   wd_query = Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [ wd_query ])
 }
 wd_query = RootEntity.new(Entity::ANY_VALUE, [ wd_query ])
 TEST_QUERIES = {
   "1. Specific entity lookups" =>
-    RootEntity.new(BmVars::ID1, [
-      Entity.new(BmVars::KEY1, BmVars::STR1),
-      Entity.new(Entity::ANY_VALUE, BmVars::ID2, [
-        Entity.new(BmVars::KEY1, BmVars::ID3, [
-          Entity.new(BmVars::KEY3, BmVars::STR2)
-        ]),
-        Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
-      ]) 
-    ]),
-  "2. Any entity lookups" =>
+     RootEntity.new(BmVars::ID1, [
+       Entity.new(BmVars::KEY1, BmVars::STR1),
+       Entity.new(Entity::ANY_VALUE, BmVars::ID2, [
+         Entity.new(BmVars::KEY1, BmVars::ID3, [
+           Entity.new(BmVars::KEY3, BmVars::STR2)
+         ]),
+         Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+       ]) 
+     ]),
+ "2. Any entity lookups" =>
+   RootEntity.new(Entity::ANY_VALUE, [
+     Entity.new(BmVars::KEY1, BmVars::STR1),
+     Entity.new(BmVars::KEY2, Entity::ANY_VALUE, [
+       Entity.new(BmVars::KEY1, Entity::ANY_VALUE, [
+         Entity.new(BmVars::KEY3, BmVars::STR2)
+       ]),
+       Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+     ]) 
+   ]),
+ "3. Extensive wildcard usage" =>
+   RootEntity.new(Entity::ANY_VALUE, [
+     Entity.new(Entity::ANY_VALUE, BmVars::STR1),
+     Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
+       Entity.new(Entity::ANY_VALUE, BmVars::ID3, [
+         Entity.new(Entity::ANY_VALUE, BmVars::STR2)
+       ]),
+       Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+     ]) 
+   ]),
+ "4. Variable usage" =>
+   RootEntity.new(BmVars::VAR1, [
+     # Entity.new(BmVars::KEY1, BmVars::VAR2),
+     Entity.new(BmVars::VAR3, Entity::ANY_VALUE, [
+       Entity.new(BmVars::VAR3, BmVars::ID3, [
+         # Entity.new(Entity::ANY_VALUE, BmVars::VAR2)
+       ]),
+       Entity.new(BmVars::KEY2, BmVars::VAR1)
+     ]) 
+   ]),
+ "5. Broad query" =>
+   RootEntity.new(Entity::ANY_VALUE, [
+     Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
+       Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
+         Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE)
+       ])
+     ]) 
+   ]),
+ "6. Deep query" => d_query,
+ "7. Broad and deep query" => wd_query,
+ "9. Mapped query" =>
     RootEntity.new(Entity::ANY_VALUE, [
       Entity.new(BmVars::KEY1, BmVars::STR1),
-      Entity.new(BmVars::KEY2, Entity::ANY_VALUE, [
-        Entity.new(BmVars::KEY1, Entity::ANY_VALUE, [
-          Entity.new(BmVars::KEY3, BmVars::STR2)
-        ]),
-        Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
-      ]) 
-    ]),
-  "3. Extensive wildcard usage" =>
-    RootEntity.new(Entity::ANY_VALUE, [
-      Entity.new(Entity::ANY_VALUE, BmVars::STR1),
-      Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
-        Entity.new(Entity::ANY_VALUE, BmVars::ID3, [
-          Entity.new(Entity::ANY_VALUE, BmVars::STR2)
-        ]),
-        Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
-      ]) 
-    ]),
-  "4. Variable usage" =>
-    RootEntity.new(BmVars::VAR1, [
-      # Entity.new(BmVars::KEY1, BmVars::VAR2),
-      Entity.new(BmVars::VAR3, Entity::ANY_VALUE, [
-        Entity.new(BmVars::VAR3, BmVars::ID3, [
-          # Entity.new(Entity::ANY_VALUE, BmVars::VAR2)
-        ]),
-        Entity.new(BmVars::KEY2, BmVars::VAR1)
-      ]) 
-    ]),
-  "5. Wide query" =>
-    RootEntity.new(Entity::ANY_VALUE, [
-      Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
-        Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE, [
-          Entity.new(Entity::ANY_VALUE, Entity::ANY_VALUE)
-        ])
-      ]) 
-    ]),
-  "6. Deep query" => d_query,
-  "7. Wide and deep query" => wd_query
+      Entity.new(BmVars::KEY3, BmVars::ID3, [
+        Entity.new(BmVars::KEY3, BmVars::ID3, [
+          Entity.new(BmVars::KEY1, BmVars::STR1),
+          Entity.new(BmVars::KEY2, BmVars::STR1),
+          Entity.new(BmVars::KEY3, BmVars::STR1),
+      ]),
+      Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+    ]) 
+  ])
 }.sort
 
 MAPPING_QUERIES = {
   "8. Mapping query" =>
-    RootEntity.new(Entity::ANY_VALUE, [
-      Entity.new(BmVars::KEY2 + "m", BmVars::STR2),
-      Entity.new(BmVars::KEY3 + "m", BmVars::STR3),
-      Entity.new(BmVars::KEY3, BmVars::ID3, [
-        Entity.new(BmVars::KEY3, BmVars::ID3, [
-          Entity.new(BmVars::KEY1 + "m", BmVars::STR1)
-        ]),
-        Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
-      ]) 
-    ])
+     RootEntity.new(Entity::ANY_VALUE, [
+       Entity.new(BmVars::KEY2 + "m", BmVars::STR2),
+       Entity.new(BmVars::KEY3 + "m", BmVars::STR3),
+       Entity.new(BmVars::KEY3, BmVars::ID3, [
+         Entity.new(BmVars::KEY3, BmVars::ID3, [
+           Entity.new(BmVars::KEY1 + "m", BmVars::STR1)
+         ]),
+         Entity.new(BmVars::KEY2, Entity::ANY_VALUE)
+       ]) 
+     ])
 }
 
 SIZES.each { |num_nodes|
