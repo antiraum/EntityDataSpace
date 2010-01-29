@@ -1,8 +1,0 @@
-# PRIO 1
-* check which indexes to keep
-* benchmark
-
-# PRIO 2
-* query string parser
-* rdoc
-* pre-process search query to remove duplicate conditions for entities at different point (entities represented as ids or vars)
